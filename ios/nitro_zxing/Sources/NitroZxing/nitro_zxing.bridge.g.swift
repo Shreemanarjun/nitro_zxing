@@ -1,0 +1,1 @@
+../../../Classes/nitro_zxing.bridge.g.swift
