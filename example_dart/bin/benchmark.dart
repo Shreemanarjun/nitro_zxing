@@ -1,6 +1,6 @@
 // Per-call timings of every nitro_zxing path. Run AOT for realistic numbers:
 //   dart build cli -t bin/benchmark.dart -o build/bench
-//   build/bench/bundle/bin/benchmark ../test/native/qr_margelo_256_stride272.luma
+//   build/bench/bundle/bin/benchmark ../test/native/qr_nitro_256_stride272.luma
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:nitro_zxing/nitro_zxing.dart';
@@ -32,7 +32,7 @@ Future<void> main(List<String> args) async {
     fhd.setRange((400 + y) * 1920 + 800, (400 + y) * 1920 + 1056, qr, y * 272);
   }
   final png = z.encodePng(
-    'https://margelo.com',
+    'https://nitro.shreeman.dev',
     format: ZxingFormat.qrCode,
     width: 256,
     height: 256,
@@ -104,7 +104,7 @@ Future<void> main(List<String> args) async {
     'encode QR 256x256': us(
       2000,
       () => z.encode(
-        'https://margelo.com',
+        'https://nitro.shreeman.dev',
         format: ZxingFormat.qrCode,
         width: 256,
         height: 256,
@@ -113,7 +113,7 @@ Future<void> main(List<String> args) async {
     'encodePng QR 256x256': us(
       1000,
       () => z.encodePng(
-        'https://margelo.com',
+        'https://nitro.shreeman.dev',
         format: ZxingFormat.qrCode,
         width: 256,
         height: 256,

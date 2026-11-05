@@ -12,7 +12,7 @@ void main(List<String> args) {
   final luma = File(
     args.isNotEmpty
         ? args.first
-        : '../test/native/qr_margelo_256_stride272.luma',
+        : '../test/native/qr_nitro_256_stride272.luma',
   ).readAsBytesSync();
   final r = NitroZxing.instance.decode(
     luma,

@@ -10,7 +10,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('decodes the QR fixture', (_) async {
-    final qr = (await rootBundle.load('assets/qr_margelo_256_stride272.luma'))
+    final qr = (await rootBundle.load('assets/qr_nitro_256_stride272.luma'))
         .buffer
         .asUint8List();
     final zxing = NitroZxing.instance;
@@ -25,7 +25,7 @@ void main() {
         );
 
     final hit = decode(qr, formats: {ZxingFormat.qrCode})!;
-    expect(hit.text, 'https://margelo.com');
+    expect(hit.text, 'https://nitro.shreeman.dev');
     expect(hit.format, ZxingFormat.qrCode);
     expect(hit.corners, hasLength(8));
     expect(decode(qr, formats: {ZxingFormat.code128}), isNull);
@@ -49,7 +49,7 @@ void main() {
             pixelFormat: ZxingPixelFormat.bgra,
           )
           ?.text,
-      'https://margelo.com',
+      'https://nitro.shreeman.dev',
     );
 
     // Writing, PNG output and image-file decoding (zxing writers + stb).

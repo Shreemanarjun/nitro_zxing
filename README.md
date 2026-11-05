@@ -176,12 +176,12 @@ Per call, AOT-compiled on an Apple M1 Pro ([example_dart/bin/benchmark.dart](exa
 | Call | Time |
 | :--- | ---: |
 | Bridge round trip (empty 8×8 image) | 2 µs |
-| QR, 256×256 luma, `live`, `formats: {qrCode}` | 75 µs |
-| Same, all formats | 83 µs |
+| QR, 256×256 luma, `live`, `formats: {qrCode}` | 77 µs |
+| Same, all formats | 84 µs |
 | Same, BGRA pixels | 165 µs |
 | 1080p luma frame, `live`, QR only | 1.1 ms |
-| 1080p frame with a 256×256 `region` | 0.11–0.14 ms |
-| `decodeImage`, 256×256 PNG | 92 µs |
+| 1080p frame with a 256×256 `region` | 0.12 ms |
+| `decodeImage`, 256×256 PNG | 95 µs |
 | `encode` QR, 256×256 | 135 µs |
 | `encodePng` QR, 256×256 | 0.4 ms |
 

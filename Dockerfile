@@ -21,9 +21,9 @@ RUN cmake -S src -B build/lib -G Ninja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build/lib \
  && g++ -std=c++20 -Ilib/src/generated/cpp -Isrc -Isrc/native test/native/decode_check.cpp \
       -Lbuild/lib -lnitro_zxing -Wl,-rpath,/w/build/lib -o build/decode_check \
- && build/decode_check test/native/qr_margelo_256_stride272.luma
+ && build/decode_check test/native/qr_nitro_256_stride272.luma
 RUN dart pub get && dart test test/nitro_zxing_vm_test.dart
 RUN cd example_dart && dart pub get \
  && dart build cli -t bin/main.dart -o /w/build/cli \
- && /w/build/cli/bundle/bin/main /w/test/native/qr_margelo_256_stride272.luma \
-    | tee /dev/stderr | grep -q '^https://margelo.com '
+ && /w/build/cli/bundle/bin/main /w/test/native/qr_nitro_256_stride272.luma \
+    | tee /dev/stderr | grep -q '^https://nitro.shreeman.dev '

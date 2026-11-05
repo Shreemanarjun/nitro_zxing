@@ -69,7 +69,7 @@ flutter:
 
   # Symlink to ../test/native's fixture, for integration_test/.
   assets:
-    - assets/qr_margelo_256_stride272.luma
+    - assets/qr_nitro_256_stride272.luma
 
   # To add assets to your application, add an assets section, like this:
   # assets:

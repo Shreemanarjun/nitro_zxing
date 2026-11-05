@@ -79,7 +79,7 @@ Luma sideBySide(Luma a, Luma b) {
 
 void main() {
   final zxing = NitroZxing.instance;
-  final qr = Luma.file('qr_margelo_256_stride272.luma', 256, 256, 272);
+  final qr = Luma.file('qr_nitro_256_stride272.luma', 256, 256, 272);
   final ean13 = Luma.file('ean13.luma', 300, 120);
   final code128 = Luma.file('code128.luma', 300, 120);
   final dataMatrix = Luma.file('datamatrix.luma', 120, 120);
@@ -100,7 +100,7 @@ void main() {
   group('symbologies', () {
     test('QR code, with corners', () {
       final r = decode(qr)!;
-      expect(r.text, 'https://margelo.com');
+      expect(r.text, 'https://nitro.shreeman.dev');
       expect(r.format, ZxingFormat.qrCode);
       expect(r.corners, hasLength(8));
     });
@@ -145,7 +145,7 @@ void main() {
           rowStride: px.stride,
           pixelFormat: format,
         );
-        expect(r?.text, 'https://margelo.com');
+        expect(r?.text, 'https://nitro.shreeman.dev');
       });
     }
   });
@@ -157,9 +157,9 @@ void main() {
         zxing
             .decode(tight.bytes, width: tight.width, height: tight.height)
             ?.text,
-        'https://margelo.com',
+        'https://nitro.shreeman.dev',
       );
-      expect(decode(qr.restrided(400))?.text, 'https://margelo.com');
+      expect(decode(qr.restrided(400))?.text, 'https://nitro.shreeman.dev');
     });
     test('rejects a stride narrower than a row', () {
       expect(decode(Luma(qr.bytes, qr.width, qr.height, 100)), isNull);
@@ -235,7 +235,7 @@ void main() {
   group('result details', () {
     test('QR metadata', () {
       final r = decode(qr)!;
-      expect(r.bytes, utf8.encode('https://margelo.com'));
+      expect(r.bytes, utf8.encode('https://nitro.shreeman.dev'));
       expect(r.contentType, ZxingContentType.text);
       expect(r.symbologyIdentifier, startsWith(']Q'));
       expect(r.ecLevel, isNotEmpty);
@@ -272,7 +272,7 @@ void main() {
     );
     test('tryInvert finds light-on-dark codes and flags them', () {
       final r = decodeInverted(const ZxingReaderOptions())!;
-      expect((r.text, r.isInverted), ('https://margelo.com', true));
+      expect((r.text, r.isInverted), ('https://nitro.shreeman.dev', true));
       expect(
         decodeInverted(const ZxingReaderOptions(tryInvert: false)),
         isNull,
@@ -331,7 +331,7 @@ void main() {
         pixels: tight.bytes,
       ).toPng();
       expect(png.sublist(1, 4), ascii.encode('PNG'));
-      expect(zxing.decodeImage(png)?.text, 'https://margelo.com');
+      expect(zxing.decodeImage(png)?.text, 'https://nitro.shreeman.dev');
     });
     test('decodeImageAll and a non-image file', () {
       final both = sideBySide(qr.restrided(qr.width), ean13);
@@ -416,7 +416,7 @@ void main() {
           height: qr.height,
           rowStride: qr.stride,
         ))?.text,
-        'https://margelo.com',
+        'https://nitro.shreeman.dev',
       );
       final png = zxing.encodePng(
         'async',

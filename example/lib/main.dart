@@ -7,7 +7,7 @@ Future<void> main() async {
 
   // A 256×256 luma image (rowStride 272) holding a QR code — what a camera
   // frame's Y plane looks like. Real use: see nitro_camera's frame processor.
-  final luma = (await rootBundle.load('assets/qr_margelo_256_stride272.luma'))
+  final luma = (await rootBundle.load('assets/qr_nitro_256_stride272.luma'))
       .buffer
       .asUint8List();
   final r = NitroZxing.instance.decode(

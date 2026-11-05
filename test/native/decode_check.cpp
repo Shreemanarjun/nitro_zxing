@@ -3,7 +3,7 @@
 //   cmake -S src -B build/host && cmake --build build/host
 //   clang++ -std=c++20 -Ilib/src/generated/cpp -Isrc -Isrc/native test/native/decode_check.cpp \
 //     -Lbuild/host -lnitro_zxing -Wl,-rpath,build/host -o build/decode_check
-//   build/decode_check test/native/qr_margelo_256_stride272.luma
+//   build/decode_check test/native/qr_nitro_256_stride272.luma
 #include "nitro_zxing.native.g.h"
 #include <cassert>
 #include <cstdio>
@@ -32,7 +32,7 @@ int main(int, char** argv) {
   auto hits = decode(px, 256, 256, 272, {ZXINGFORMAT_QR_CODE});
   assert(hits.size() == 1);
   std::printf("text='%s' format=%d corners=%zu\n", hits[0].text.c_str(), (int)hits[0].format, hits[0].corners.size());
-  assert(hits[0].text == "https://margelo.com" && hits[0].format == ZXINGFORMAT_QR_CODE && hits[0].corners.size() == 8);
+  assert(hits[0].text == "https://nitro.shreeman.dev" && hits[0].format == ZXINGFORMAT_QR_CODE && hits[0].corners.size() == 8);
   assert(decode(px, 256, 256, 272, {}).size() == 1);                     // empty = every format
   assert(decode(px, 256, 256, 272, {ZXINGFORMAT_CODE128}).empty());      // Code 128 only: no QR
   std::vector<uint8_t> blank(272 * 256, 200);
