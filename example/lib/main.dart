@@ -3,7 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:nitro_zxing/nitro_zxing.dart';
 
-void main() => runApp(const MaterialApp(home: ExampleScreen()));
+Future<void> main() async {
+  await ensureNitroZxingReady(); // loads the wasm module on web; no-op elsewhere
+  runApp(const MaterialApp(home: ExampleScreen()));
+}
 
 /// Decodes a blank 64×64 luma image — proves the native library loads.
 /// Real use: pass a camera frame's Y plane (see nitro_camera's QR bench).

@@ -15,6 +15,7 @@ Initial release.
 * **Zero-copy input** — a native-backed `Uint8List` (a `NitroBuffer` view or
   nitro_camera's `attachDirect` frames) crosses by pointer; a Dart-heap buffer
   is copied once.
-* **C++ only** on Android and iOS over nitro FFI — no JNI, no Swift, no
-  platform channel. Synchronous and thread-safe, so it runs straight on a
+* **Six platforms from one C++ source** — Android, iOS, macOS, Windows and
+  Linux over nitro FFI; web as a WebAssembly module (`ensureNitroZxingReady()`
+  loads it). No JNI, no Swift, no platform channel. Synchronous and thread-safe, so it runs straight on a
   frame-processor isolate.

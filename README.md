@@ -1,6 +1,6 @@
 # Nitro ZXing 🔍
 
-[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) barcode and QR decoding for Flutter, built on the **Nitro** FFI bridge — the Flutter counterpart of react-native-nitro-zxing. The implementation is **C++ only** (`AndroidNativeImpl.cpp` / `AppleNativeImpl.cpp`): no JNI, no Swift, no platform channel.
+[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) barcode and QR decoding for Flutter, built on the **Nitro** FFI bridge — the Flutter counterpart of react-native-nitro-zxing. One C++ implementation serves **Android, iOS, macOS, Windows and Linux** over FFI, and **web** as WebAssembly: no JNI, no Swift, no platform channel.
 
 [![Nitro](https://img.shields.io/badge/Powered%20by-Nitro-cyan.svg)](https://pub.dev/packages/nitro)
 [![zxing-cpp](https://img.shields.io/badge/zxing--cpp-3.1.1-orange.svg)](https://github.com/zxing-cpp/zxing-cpp)
@@ -8,6 +8,7 @@
 
 ## 🌟 Features
 
+* **Six platforms** — Android, iOS, macOS, Windows, Linux and web (WASM) from one C++ source.
 * **14 symbologies** — QR, Micro QR, Aztec, Data Matrix, PDF417, Code 128/39/93, Codabar, EAN-13/8, UPC-A/E and ITF.
 * **Synchronous & thread-safe** — call it straight from a frame-processor isolate.
 * **Zero-copy input** — native-backed buffers cross by pointer.
@@ -27,7 +28,7 @@ Or from the terminal:
 flutter pub add nitro_zxing
 ```
 
-Requires **iOS 13.0+** and Android **minSdk 24**. No permissions — pair it with a camera plugin such as [nitro_camera](https://github.com/Shreemanarjun/nitro_camera) for live scanning.
+Requires Android **minSdk 24**, **iOS 13.0+** and **macOS 10.15+**. No permissions — pair it with a camera plugin such as [nitro_camera](https://github.com/Shreemanarjun/nitro_camera) for live scanning.
 
 ## ⏱️ Quick Start
 
@@ -43,6 +44,16 @@ if (r.text.isNotEmpty) print('${r.text} at ${r.corners}');
 ```
 
 `decodeLuma` is synchronous, so call it from a worker isolate, not the UI isolate.
+
+### Web
+
+The WASM module ships in the package. Load it once before the first call (a no-op on other platforms):
+
+```dart
+await ensureNitroZxingReady();
+```
+
+On web, `luma` is copied into WASM memory on each call, and calls run on the browser's main thread.
 
 ## 🧭 API Reference
 
@@ -75,9 +86,18 @@ ZxingResult decodeLuma(
 
 - `lib/src/nitro_zxing.native.dart` — the nitro spec; `nitrogen generate && nitrogen link` after edits.
 - `src/HybridNitroZxing.cpp` — the decoder (implements the generated `HybridNitroZxing`).
-- `src/zxing-cpp/` — vendored zxing-cpp 3.1.1 core (Apache-2.0), readers only on Android.
+- `src/zxing-cpp/` — vendored zxing-cpp 3.1.1 core (Apache-2.0), readers only.
 - iOS: `ios/nitro_zxing/Package.swift` builds `ZXingCore` from a symlink to the vendored sources; `Sources/ZXingCoreConfig/Version.h` stands in for the CMake-generated header.
+- `windows/`, `linux/` — CMake entry points into the shared `src/CMakeLists.txt` (zxing included).
+- macOS: `macos/nitro_zxing/Package.swift`, same layout as iOS.
+- Web: `emcmake cmake -S src -B build/web -DCMAKE_BUILD_TYPE=Release && cmake --build build/web` writes `assets/web/nitro_zxing.{js,wasm}`. Use this, not `web/build_web.sh`: `nitrogen link` regenerates that script without the zxing sources.
+- Don't run `nitrogen clean`: it deletes every `Hybrid*.cpp`, including the hand-written `src/HybridNitroZxing.cpp` and zxing's `HybridBinarizer.cpp`.
+
+### Tests
+
 - `test/native/decode_check.cpp` — host decode check (instructions in its header).
+- `test/nitro_zxing_web_test.dart` — WASM decode in Chrome: `flutter test --platform chrome test/nitro_zxing_web_test.dart`.
+- `example/integration_test/decode_test.dart` — on-device decode: `cd example && flutter test integration_test -d <device>`.
 
 ## 📄 License
 

@@ -1,4 +1,6 @@
 export 'src/nitro_zxing.native.dart' show NitroZxing, ZxingResult;
+// Loads the wasm module on web; a no-op elsewhere.
+export 'src/nitro_zxing.platform.g.dart' show ensureNitroZxingReady;
 
 /// Bit values for `NitroZxing.decodeLuma`'s `formats` mask (OR them together).
 /// Mirrored in src/NitroZxingImpl.cpp.

@@ -31,3 +31,9 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# `nitrogen link` copies the Swift bridge into every SPM Sources/* dir,
+# including these non-Swift ones (excluded in Package.swift).
+/src/zxing-cpp/core/src/nitro_zxing.bridge.g.swift
+/ios/nitro_zxing/Sources/ZXingCoreConfig/nitro_zxing.bridge.g.swift
+

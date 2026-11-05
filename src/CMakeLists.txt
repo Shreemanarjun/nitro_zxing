@@ -18,7 +18,7 @@ if(NOT "${_NITRO_CFG}" MATCHES "^(DEBUG|RELEASE|RELWITHDEBINFO|MINSIZEREL|)$")
 endif()
 
 set(NITRO_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/native")
-# NITRO_LINK_SPEC_CHECKSUM c4b84cc387fd6c1d
+# NITRO_LINK_SPEC_CHECKSUM 750d990cfa887016
 set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp")
 
 # zxing-cpp readers only, as a static archive linked into the plugin.
@@ -26,14 +26,45 @@ set(ZXING_READERS ON CACHE BOOL "" FORCE)
 set(ZXING_WRITERS OFF CACHE STRING "" FORCE)
 set(ZXING_C_API OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF)
+if(EMSCRIPTEN)
+  # Must match the bridge (and zxing) — wasm exception handling everywhere.
+  add_compile_options(-fwasm-exceptions)
+endif()
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/zxing-cpp/core" "${CMAKE_BINARY_DIR}/zxing-cpp" EXCLUDE_FROM_ALL)
 
+if(EMSCRIPTEN)
+  # Web: `emcmake cmake -S src -B build/web -DCMAKE_BUILD_TYPE=Release &&
+  # cmake --build build/web` writes assets/web/nitro_zxing.{js,wasm}.
+  # Replaces web/build_web.sh, which `nitrogen link` regenerates without the
+  # zxing sources. Link flags mirror that script.
+  add_executable(nitro_zxing
+    "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp/nitro_zxing.bridge.g.cpp"
+  )
+  set_target_properties(nitro_zxing PROPERTIES
+    SUFFIX ".js"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../assets/web"
+  )
+  target_link_options(nitro_zxing PRIVATE
+    --no-entry -fwasm-exceptions
+    -sMODULARIZE=1 -sEXPORT_NAME=createNitroZxingModule
+    -sALLOW_MEMORY_GROWTH=1 -sALLOW_TABLE_GROWTH=1
+    -sWASM_BIGINT=1 -sENVIRONMENT=web
+    -sEXPORTED_RUNTIME_METHODS=addFunction,removeFunction,wasmExports,wasmMemory,HEAPU8
+    -sEXPORTED_FUNCTIONS=_malloc,_free
+  )
+else()
 add_library(nitro_zxing SHARED
-  "HybridNitroZxing.cpp"
   "nitro_zxing.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp/nitro_zxing.bridge.g.cpp"
   "dart_api_dl.c"
 )
+target_compile_definitions(nitro_zxing PUBLIC DART_SHARED_LIB)
+endif()
+if(DEFINED NITRO_IMPL_SRC_nitro_zxing)
+  target_sources(nitro_zxing PRIVATE "${NITRO_IMPL_SRC_nitro_zxing}")
+else()
+  target_sources(nitro_zxing PRIVATE "HybridNitroZxing.cpp")
+endif()
 
 target_include_directories(nitro_zxing PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -41,7 +72,6 @@ target_include_directories(nitro_zxing PRIVATE
   "${NITRO_NATIVE}"
 )
 
-target_compile_definitions(nitro_zxing PUBLIC DART_SHARED_LIB)
 target_link_libraries(nitro_zxing PRIVATE ZXing::ZXing)
 
 if(ANDROID)

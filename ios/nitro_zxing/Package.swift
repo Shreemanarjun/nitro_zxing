@@ -16,7 +16,9 @@ let package = Package(
         .target(
             name: "ZXingCore",
             path: "Sources/ZXingCore",
-            exclude: ["libzint", "ZXingC.cpp", "ZXingCpp.cpp"],
+            // nitro_zxing.bridge.g.swift: `nitrogen link` copies the Swift bridge
+            // into every Sources/* dir, this symlinked one included.
+            exclude: ["libzint", "ZXingC.cpp", "ZXingCpp.cpp", "nitro_zxing.bridge.g.swift"],
             publicHeadersPath: ".",
             cxxSettings: [
                 .headerSearchPath("../ZXingCoreConfig"),
