@@ -2,16 +2,52 @@ import 'package:nitro/nitro.dart';
 
 part 'nitro_zxing.g.dart';
 
-/// One decode result. [text] is empty when nothing was found.
+/// A barcode symbology zxing-cpp can read.
+@HybridEnum()
+enum ZxingFormat {
+  qrCode,
+  microQrCode,
+  aztec,
+  dataMatrix,
+  pdf417,
+  code128,
+  code39,
+  code93,
+  codabar,
+  ean13,
+  ean8,
+  upcA,
+  upcE,
+  itf,
+}
+
+/// How the pixels passed to a decode call are laid out.
+@HybridEnum()
+enum ZxingPixelFormat {
+  /// 8-bit luminance, 1 byte per pixel (e.g. a YUV frame's Y plane).
+  luma,
+
+  /// 4 bytes per pixel, B G R A (nitro_camera's default frame format).
+  bgra,
+
+  /// 4 bytes per pixel, R G B A.
+  rgba,
+
+  /// 3 bytes per pixel, R G B.
+  rgb,
+
+  /// 3 bytes per pixel, B G R.
+  bgr,
+}
+
+/// One decoded barcode.
 @HybridRecord()
 class ZxingResult {
   final String text;
-
-  /// The decoded symbology as a [ZxingFormat] bit (0 when nothing was found).
-  final int format;
+  final ZxingFormat format;
 
   /// Corner points x0,y0 … x3,y3 in the input image's pixel space
-  /// (top-left, top-right, bottom-right, bottom-left); empty on a miss.
+  /// (top-left, top-right, bottom-right, bottom-left).
   final List<int> corners;
 
   const ZxingResult({
@@ -21,9 +57,12 @@ class ZxingResult {
   });
 }
 
-/// zxing-cpp (C++) barcode decoding over FFI — the Flutter counterpart of
-/// react-native-nitro-zxing. Calls are synchronous and thread-safe, so they
+/// zxing-cpp (C++) barcode decoding over FFI — the Dart/Flutter counterpart
+/// of react-native-nitro-zxing. Calls are synchronous and thread-safe, so they
 /// can run straight on a frame-processor isolate.
+///
+/// Use the `decode` / `decodeAll` extension methods; [readBarcodes] is the raw
+/// bridge call they wrap.
 @NitroModule(
   lib: 'nitro_zxing',
   ios: AppleNativeImpl.cpp,
@@ -35,17 +74,20 @@ class ZxingResult {
 abstract class NitroZxing extends HybridObject {
   static final NitroZxing instance = _NitroZxingImpl();
 
-  /// Decodes an 8-bit luminance image (e.g. a YUV frame's Y plane).
-  /// [rowStride] may exceed [width] (padded rows). [formats] is a bitmask of
-  /// [ZxingFormat] values. [live] enables the live-camera ladder: a plain scan
-  /// every call, plus a rotation-tolerant scan on every 4th call that misses.
-  /// The buffer is only read during the call.
-  ZxingResult decodeLuma(
-    @zeroCopy Uint8List luma,
+  /// Decodes up to [maxSymbols] barcodes (0 = no limit) of [formats] (empty =
+  /// every format) from [pixels] laid out as [pixelFormat]. [rowStride] is in
+  /// bytes and may exceed the row width (padded rows); 0 means unpadded.
+  /// [live] enables the live-camera ladder: a plain scan every call, plus a
+  /// rotation-tolerant scan on every 4th call that misses. The buffer is only
+  /// read during the call.
+  List<ZxingResult> readBarcodes(
+    @zeroCopy Uint8List pixels,
     int width,
     int height,
     int rowStride,
-    int formats,
+    ZxingPixelFormat pixelFormat,
+    List<ZxingFormat> formats,
     bool live,
+    int maxSymbols,
   );
 }

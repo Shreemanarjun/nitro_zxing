@@ -42,9 +42,9 @@ public:
 
     // ── Methods ──────────────────────────────────────────────────────────────
 
-    NitroCppBuffer decodeLuma(const uint8_t* luma, size_t luma_length, int64_t width, int64_t height, int64_t rowStride, int64_t formats, bool live) override {
-        // TODO: implement decodeLuma
-        throw std::runtime_error("Not implemented: decodeLuma");
+    NitroCppBuffer readBarcodes(const uint8_t* pixels, size_t pixels_length, int64_t width, int64_t height, int64_t rowStride, ZxingPixelFormat pixelFormat, NitroCppBuffer formats, bool live, int64_t maxSymbols) override {
+        // TODO: implement readBarcodes
+        throw std::runtime_error("Not implemented: readBarcodes");
         // return { nullptr, 0 };
     }
 };

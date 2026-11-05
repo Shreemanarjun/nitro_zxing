@@ -8,6 +8,7 @@
 #include "ReadBarcode.h"
 
 #include <atomic>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -15,43 +16,61 @@ namespace {
 
 using ZXing::BarcodeFormat;
 
-// Bit values mirror ZxingFormat in lib/nitro_zxing.dart.
-constexpr std::pair<int64_t, BarcodeFormat> kFormats[] = {
-    {1 << 0, BarcodeFormat::QRCode},     {1 << 1, BarcodeFormat::Aztec},
-    {1 << 2, BarcodeFormat::DataMatrix}, {1 << 3, BarcodeFormat::PDF417},
-    {1 << 4, BarcodeFormat::Code128},    {1 << 5, BarcodeFormat::Code39},
-    {1 << 6, BarcodeFormat::Code93},     {1 << 7, BarcodeFormat::Codabar},
-    {1 << 8, BarcodeFormat::EAN13},      {1 << 9, BarcodeFormat::EAN8},
-    {1 << 10, BarcodeFormat::UPCA},      {1 << 11, BarcodeFormat::UPCE},
-    {1 << 12, BarcodeFormat::ITF},       {1 << 13, BarcodeFormat::MicroQRCode},
+// Indexed by the generated ZxingFormat enum (lib/src/nitro_zxing.native.dart).
+constexpr BarcodeFormat kFormats[] = {
+    BarcodeFormat::QRCode, BarcodeFormat::MicroQRCode, BarcodeFormat::Aztec,
+    BarcodeFormat::DataMatrix, BarcodeFormat::PDF417, BarcodeFormat::Code128,
+    BarcodeFormat::Code39, BarcodeFormat::Code93, BarcodeFormat::Codabar,
+    BarcodeFormat::EAN13, BarcodeFormat::EAN8, BarcodeFormat::UPCA,
+    BarcodeFormat::UPCE, BarcodeFormat::ITF,
+};
+constexpr int64_t kFormatCount = static_cast<int64_t>(std::size(kFormats));
+
+// Indexed by the generated ZxingPixelFormat enum: zxing layout, bytes per pixel.
+constexpr std::pair<ZXing::ImageFormat, int> kPixelFormats[] = {
+    {ZXing::ImageFormat::Lum, 1}, {ZXing::ImageFormat::BGRA, 4}, {ZXing::ImageFormat::RGBA, 4},
+    {ZXing::ImageFormat::RGB, 3}, {ZXing::ImageFormat::BGR, 3},
 };
 
 constexpr uint64_t kRotationPeriod = 4;
+constexpr int kMaxSymbols = 255;  // zxing-cpp's own cap
 
-int64_t bitOf(const ZXing::Barcode& b) {
-  for (const auto& [bit, f] : kFormats)
-    if (b.format() == f || b.symbology() == f) return bit;
-  return 0;
+// -1 for a symbology outside ZxingFormat (can't happen: the reader is limited to them).
+int64_t formatOf(const ZXing::Barcode& b) {
+  for (int64_t i = 0; i < kFormatCount; i++)
+    if (b.format() == kFormats[i] || b.symbology() == kFormats[i]) return i;
+  return -1;
 }
 
-NitroCppBuffer miss() { return ZxingResult{"", 0, {}}.toNativeBuffer(); }
+NitroCppBuffer encode(const std::vector<ZxingResult>& results) {
+  NitroRecordWriter w;
+  w.writeIndexedList(results, [](NitroRecordWriter& w, const ZxingResult& r) { r.encodeInto(w); });
+  return w.toNativeBuffer();
+}
 
 class NitroZxingImpl final : public HybridNitroZxing {
  public:
-  NitroCppBuffer decodeLuma(const uint8_t* luma, size_t luma_length, int64_t width, int64_t height,
-                            int64_t rowStride, int64_t formats, bool live) override {
-    const int64_t stride = rowStride > 0 ? rowStride : width;
-    if (!luma || width <= 0 || height <= 0 || stride < width ||
-        luma_length < static_cast<size_t>(stride * (height - 1) + width))
-      return miss();
+  NitroCppBuffer readBarcodes(const uint8_t* pixels, size_t pixels_length, int64_t width, int64_t height,
+                              int64_t rowStride, ZxingPixelFormat pixelFormat, NitroCppBuffer formats,
+                              bool live, int64_t maxSymbols) override {
+    if (pixelFormat < 0 || pixelFormat >= static_cast<int>(std::size(kPixelFormats))) return encode({});
+    const auto [imageFormat, bpp] = kPixelFormats[pixelFormat];
+    const int64_t rowBytes = width * bpp;
+    const int64_t stride = rowStride > 0 ? rowStride : rowBytes;
+    if (!pixels || width <= 0 || height <= 0 || stride < rowBytes ||
+        pixels_length < static_cast<size_t>(stride * (height - 1) + rowBytes))
+      return encode({});
 
+    // List<ZxingFormat> arrives as a plain [4B count][8B value…] payload
+    // (nitro's RecordWriter.encodeList), not the offset-indexed record layout.
     std::vector<BarcodeFormat> wanted;
-    for (const auto& [bit, f] : kFormats)
-      if (formats & bit) wanted.push_back(f);
-    if (wanted.empty()) return miss();
+    NitroRecordReader in(formats);
+    for (int32_t i = 0, n = in.readInt32(); i < n; i++)
+      if (const int64_t f = in.readInt(); f >= 0 && f < kFormatCount) wanted.push_back(kFormats[f]);
+    if (wanted.empty()) wanted.assign(std::begin(kFormats), std::end(kFormats));  // empty = every format
 
-    const ZXing::ImageView image(luma, static_cast<int>(width), static_cast<int>(height),
-                                 ZXing::ImageFormat::Lum, static_cast<int>(stride));
+    const ZXing::ImageView image(pixels, static_cast<int>(width), static_cast<int>(height), imageFormat,
+                                 static_cast<int>(stride));
     const uint64_t call = calls_.fetch_add(1, std::memory_order_relaxed);
 
     ZXing::ReaderOptions opts;
@@ -60,22 +79,28 @@ class NitroZxingImpl final : public HybridNitroZxing {
     opts.setTryInvert(!live);
     opts.setTryRotate(!live);
     opts.setTryDownscale(!live);
-    opts.setMaxNumberOfSymbols(1);
+    opts.setMaxNumberOfSymbols(maxSymbols > 0 && maxSymbols < kMaxSymbols ? static_cast<int>(maxSymbols) : kMaxSymbols);
 
-    auto hit = ZXing::ReadBarcode(image, opts);
-    if (!hit.isValid() && live && call % kRotationPeriod == 0) {
+    auto hits = ZXing::ReadBarcodes(image, opts);
+    if (hits.empty() && live && call % kRotationPeriod == 0) {
       opts.setTryRotate(true);
-      hit = ZXing::ReadBarcode(image, opts);
+      hits = ZXing::ReadBarcodes(image, opts);
     }
-    if (!hit.isValid()) return miss();
 
-    std::vector<int64_t> corners;
-    corners.reserve(8);
-    for (const auto& p : hit.position()) {
-      corners.push_back(p.x);
-      corners.push_back(p.y);
+    std::vector<ZxingResult> results;
+    results.reserve(hits.size());
+    for (const auto& hit : hits) {
+      const int64_t format = formatOf(hit);
+      if (format < 0) continue;
+      std::vector<int64_t> corners;
+      corners.reserve(8);
+      for (const auto& p : hit.position()) {
+        corners.push_back(p.x);
+        corners.push_back(p.y);
+      }
+      results.push_back(ZxingResult{hit.text(), static_cast<ZxingFormat>(format), std::move(corners)});
     }
-    return ZxingResult{hit.text(), bitOf(hit), std::move(corners)}.toNativeBuffer();
+    return encode(results);
   }
 
  private:

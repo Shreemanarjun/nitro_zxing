@@ -14,15 +14,13 @@ void main(List<String> args) {
         ? args.first
         : '../test/native/qr_margelo_256_stride272.luma',
   ).readAsBytesSync();
-  final r = NitroZxing.instance.decodeLuma(
+  final r = NitroZxing.instance.decode(
     luma,
-    256,
-    256,
-    272,
-    ZxingFormat.all,
-    false,
+    width: 256,
+    height: 256,
+    rowStride: 272,
   );
   stdout.writeln(
-    r.text.isEmpty ? 'no code found' : '${r.text} corners=${r.corners}',
+    r == null ? 'no code found' : '${r.text} corners=${r.corners}',
   );
 }

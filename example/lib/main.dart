@@ -10,17 +10,15 @@ Future<void> main() async {
   final luma = (await rootBundle.load('assets/qr_margelo_256_stride272.luma'))
       .buffer
       .asUint8List();
-  final r = NitroZxing.instance.decodeLuma(
+  final r = NitroZxing.instance.decode(
     luma,
-    256,
-    256,
-    272,
-    ZxingFormat.all,
-    false,
+    width: 256,
+    height: 256,
+    rowStride: 272,
   );
-  final result = r.text.isEmpty
+  final result = r == null
       ? 'no code found'
-      : '${r.text}\ncorners ${r.corners}';
+      : '${r.text} (${r.format.name})\ncorners ${r.corners}';
   // Visible in device logs (profile and debug builds).
   debugPrint('nitro_zxing: $result');
 
