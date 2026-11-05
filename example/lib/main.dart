@@ -1,24 +1,40 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nitro_zxing/nitro_zxing.dart';
 
 Future<void> main() async {
-  await ensureNitroZxingReady(); // loads the wasm module on web; no-op elsewhere
-  runApp(const MaterialApp(home: ExampleScreen()));
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // A 256×256 luma image (rowStride 272) holding a QR code — what a camera
+  // frame's Y plane looks like. Real use: see nitro_camera's frame processor.
+  final luma = (await rootBundle.load('assets/qr_margelo_256_stride272.luma'))
+      .buffer
+      .asUint8List();
+  final r = NitroZxing.instance.decodeLuma(
+    luma,
+    256,
+    256,
+    272,
+    ZxingFormat.all,
+    false,
+  );
+  final result = r.text.isEmpty
+      ? 'no code found'
+      : '${r.text}\ncorners ${r.corners}';
+  // Visible in device logs (profile and debug builds).
+  debugPrint('nitro_zxing: $result');
+
+  runApp(MaterialApp(home: ExampleScreen(result: result)));
 }
 
-/// Decodes a blank 64×64 luma image — proves the native library loads.
-/// Real use: pass a camera frame's Y plane (see nitro_camera's QR bench).
 class ExampleScreen extends StatelessWidget {
-  const ExampleScreen({super.key});
+  const ExampleScreen({super.key, required this.result});
+
+  final String result;
 
   @override
-  Widget build(BuildContext context) {
-    final r = NitroZxing.instance.decodeLuma(Uint8List(64 * 64), 64, 64, 64, ZxingFormat.all, false);
-    return Scaffold(
-      appBar: AppBar(title: const Text('nitro_zxing')),
-      body: Center(child: Text(r.text.isEmpty ? 'zxing-cpp loaded — no code in a blank image' : r.text)),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('nitro_zxing')),
+    body: Center(child: Text(result, textAlign: TextAlign.center)),
+  );
 }

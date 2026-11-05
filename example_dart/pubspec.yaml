@@ -1,0 +1,11 @@
+name: nitro_zxing_dart_example
+description: nitro_zxing from a plain Dart CLI (no Flutter).
+publish_to: none
+environment:
+  sdk: ^3.10.0
+dependencies:
+  nitro_zxing:
+    path: ../
+
+dev_dependencies:
+  lints: ^6.0.0

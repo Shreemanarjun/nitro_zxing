@@ -1,1 +1,0 @@
-../../../Classes/SwiftNitroZxingPlugin.swift

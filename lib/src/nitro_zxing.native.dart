@@ -1,7 +1,5 @@
 import 'package:nitro/nitro.dart';
 
-import 'nitro_zxing.platform.g.dart';
-
 part 'nitro_zxing.g.dart';
 
 /// One decode result. [text] is empty when nothing was found.
@@ -33,11 +31,9 @@ class ZxingResult {
   linux: NativeImpl.cpp,
   macos: AppleNativeImpl.cpp,
   windows: NativeImpl.cpp,
-  web: WebNativeImpl.wasm,
 )
 abstract class NitroZxing extends HybridObject {
-  /// On web, await `ensureNitroZxingReady()` before first use.
-  static final NitroZxing instance = createNitroZxingInstance();
+  static final NitroZxing instance = _NitroZxingImpl();
 
   /// Decodes an 8-bit luminance image (e.g. a YUV frame's Y plane).
   /// [rowStride] may exceed [width] (padded rows). [formats] is a bitmask of

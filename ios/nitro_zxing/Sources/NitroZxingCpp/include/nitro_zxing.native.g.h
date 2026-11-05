@@ -1,1 +1,0 @@
-../../../../../lib/src/generated/cpp/nitro_zxing.native.g.h

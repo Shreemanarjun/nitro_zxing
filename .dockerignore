@@ -1,0 +1,14 @@
+# Whitelist: sources, the Dart package (lib/, hook/, test/) and the pure-Dart
+# example (~4 MB; example/ alone is GBs once built).
+*
+!src/
+!lib/
+!hook/
+!test/
+!pubspec.yaml
+!analysis_options.yaml
+!example_dart/
+# Local build output and resolution state.
+src/**/build/
+example_dart/.dart_tool/
+example_dart/pubspec.lock
