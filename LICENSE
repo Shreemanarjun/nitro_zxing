@@ -24,3 +24,7 @@ SOFTWARE.
 
 This package vendors zxing-cpp (src/zxing-cpp/), which is licensed under the
 Apache License 2.0. See src/zxing-cpp/LICENSE for its full text.
+
+It also vendors stb_image and stb_image_write (src/stb/) by Sean Barrett,
+available under the public domain (Unlicense) or the MIT License; see the end
+of each header for the full text.

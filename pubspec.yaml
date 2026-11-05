@@ -1,7 +1,7 @@
 name: nitro_zxing
 description: >-
-  Fast zxing-cpp barcode and QR decoding for Dart and Flutter over Nitro FFI,
-  zero-copy on Android, iOS, macOS, Windows and Linux.
+  Fast zxing-cpp barcode and QR reading and writing for Dart and Flutter over
+  Nitro FFI, on Android, iOS, macOS, Windows and Linux.
 version: 0.0.1
 homepage: https://github.com/Shreemanarjun/nitro_zxing
 repository: https://github.com/Shreemanarjun/nitro_zxing

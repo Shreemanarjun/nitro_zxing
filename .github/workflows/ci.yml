@@ -1,0 +1,23 @@
+# The 42 pure-Dart decode/encode tests on every desktop OS. `dart test` runs the
+# package's build hook, which compiles zxing-cpp with the runner's CMake and
+# C++ toolchain (MSVC on Windows) — the only Windows coverage, as there's no
+# local Windows machine.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+      - run: dart analyze lib test
+      - run: dart test

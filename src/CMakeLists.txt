@@ -21,9 +21,10 @@ set(NITRO_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/native")
 # NITRO_LINK_SPEC_CHECKSUM 1f728a74a0bc613c
 set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp")
 
-# zxing-cpp readers only, as a static archive linked into the plugin.
+# zxing-cpp readers + legacy writers (OLD: no libzint), as a static archive
+# linked into the plugin.
 set(ZXING_READERS ON CACHE BOOL "" FORCE)
-set(ZXING_WRITERS OFF CACHE STRING "" FORCE)
+set(ZXING_WRITERS OLD CACHE STRING "" FORCE)
 set(ZXING_C_API OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/zxing-cpp/core" "${CMAKE_BINARY_DIR}/zxing-cpp" EXCLUDE_FROM_ALL)

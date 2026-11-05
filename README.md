@@ -1,6 +1,6 @@
 # Nitro ZXing 🔍
 
-[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) barcode and QR decoding for **Dart and Flutter**, built on the **Nitro** FFI bridge — the counterpart of react-native-nitro-zxing. One C++ implementation serves **Android, iOS, macOS, Windows and Linux**: no JNI, no Swift, no platform channel, and no setup — a build hook compiles the native library for whatever you build.
+[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) barcode and QR **reading and writing** for **Dart and Flutter**, built on the **Nitro** FFI bridge — the counterpart of react-native-nitro-zxing. One C++ implementation serves **Android, iOS, macOS, Windows and Linux**: no JNI, no Swift, no platform channel, and no setup — a build hook compiles the native library for whatever you build.
 
 [![Nitro](https://img.shields.io/badge/Powered%20by-Nitro-cyan.svg)](https://pub.dev/packages/nitro)
 [![zxing-cpp](https://img.shields.io/badge/zxing--cpp-3.1.1-orange.svg)](https://github.com/zxing-cpp/zxing-cpp)
@@ -10,11 +10,13 @@
 
 * **Dart and Flutter** — the same package works in Flutter apps and in plain Dart (`dart run`, `dart build cli`, servers).
 * **Five platforms** — Android, iOS, macOS, Windows and Linux from one C++ source.
-* **14 symbologies** — QR, Micro QR, Aztec, Data Matrix, PDF417, Code 128/39/93, Codabar, EAN-13/8, UPC-A/E and ITF.
-* **Synchronous & thread-safe** — call it straight from a frame-processor isolate.
-* **Zero-copy input** — native-backed buffers cross by pointer.
-* **Live-camera ladder** — a cheap scan per frame, plus a rotation-tolerant scan on every 4th miss.
-* **Corner points** — the code's quadrilateral in the input image's pixel space.
+* **14 symbologies** — QR, Micro QR, Aztec, Data Matrix, PDF417, Code 128/39/93, Codabar, EAN-13/8, UPC-A/E and ITF, with ready-made groups (`ZxingFormats.linear`, `.matrix`, `.retail`).
+* **Camera frames as they come** — 8-bit luma (a YUV frame's Y plane), BGRA (nitro_camera's default), RGBA, RGB or BGR, with padded rows.
+* **Image files** — decode PNG, JPEG, BMP, GIF and more straight from their bytes.
+* **Several codes per image**, a **region of interest** (no copy), and **rich results**: raw bytes, content type, orientation, mirrored/inverted flags, error-correction level.
+* **Barcode generation** — render any format (except Micro QR) to pixels or a PNG.
+* **Fast** — ~2 µs bridge overhead per call; a 1080p camera frame decodes in ~1 ms ([numbers below](#-performance)).
+* **Synchronous & thread-safe** — call it straight from a frame-processor isolate, or use the `…Async` variants.
 
 ## 🚀 Installation
 
@@ -35,18 +37,128 @@ Tested with Flutter's default targets: Android **minSdk 24**, **iOS 15.0** and *
 ```dart
 import 'package:nitro_zxing/nitro_zxing.dart';
 
-// e.g. inside a nitro_camera CameraFrameProcessor handler; with YUV frames
-// (format 0) `frame.bytes` is the Y (luma) plane:
-final r = NitroZxing.instance.decodeLuma(
-  frame.bytes, frame.width, frame.height, frame.effectiveBytesPerRow,
-  ZxingFormat.qrCode, true, // live: cheap scan per frame, rotation scan every 4th miss
+final zxing = NitroZxing.instance;
+
+// A camera frame, e.g. in a nitro_camera CameraFrameProcessor handler —
+// YUV frames (format 0) carry the luma plane, BGRA frames (format 1) colour:
+final r = zxing.decode(
+  frame.bytes,
+  width: frame.width,
+  height: frame.height,
+  rowStride: frame.effectiveBytesPerRow,
+  pixelFormat: frame.format == 1 ? ZxingPixelFormat.bgra : ZxingPixelFormat.luma,
+  formats: {ZxingFormat.qrCode},
+  live: true, // cheap scan per frame, rotation scan every 4th miss
 );
-if (r.text.isNotEmpty) print('${r.text} at ${r.corners}');
+if (r != null) print('${r.text} (${r.format.name}) at ${r.corners}');
+
+// An image file:
+final fromFile = zxing.decodeImage(File('ticket.png').readAsBytesSync());
+
+// Generate a QR code as PNG bytes (Flutter: Image.memory(png)):
+final png = zxing.encodePng('https://dart.dev', format: ZxingFormat.qrCode, width: 300, height: 300);
 ```
 
-`decodeLuma` is synchronous, so in a Flutter app call it from a worker isolate, not the UI isolate.
+Decoding is synchronous. In a Flutter app run it off the UI isolate — in your camera's frame processor, or with `decodeAsync` / `decodeImageAsync`.
 
-### Pure Dart (CLI, server)
+## 📖 Reading
+
+### Raw pixels
+
+```dart
+ZxingResult? r = zxing.decode(pixels, width: w, height: h);   // first code, or null
+List<ZxingResult> all = zxing.decodeAll(pixels, width: w, height: h);  // every code
+```
+
+| Parameter | Default | Meaning |
+| :--- | :--- | :--- |
+| `width`, `height` | required | Image size in pixels. |
+| `rowStride` | `0` | Bytes per row (0 = unpadded); camera frames are often padded. |
+| `pixelFormat` | `luma` | `luma` (1 byte/px), `bgra`, `rgba` (4), `rgb`, `bgr` (3). Luma is fastest. |
+| `formats` | `{}` (all) | Symbologies to look for, e.g. `{ZxingFormat.qrCode}` or `ZxingFormats.retail`. Fewer is faster. |
+| `live` | `false` | Camera mode: a fast scan per call, plus a rotation-tolerant scan on every 4th miss. Off = thorough (rotation, inversion, downscaling). |
+| `region` | `null` | `(left: , top: , width: , height: )` to search only that rectangle — no copy; corners stay in full-image coordinates. |
+| `options` | defaults | `ZxingReaderOptions`, below. |
+| `maxSymbols` | `0` (no limit) | `decodeAll` only. |
+
+`pixels` is only read during the call.
+
+### Image files
+
+```dart
+ZxingResult? r = zxing.decodeImage(fileBytes);         // PNG, JPEG, BMP, GIF, TGA, PSD, HDR, PIC, PNM
+List<ZxingResult> all = zxing.decodeImageAll(fileBytes);
+```
+
+Same `formats`, `region`, `options` and `maxSymbols` parameters. Returns null / empty if the bytes aren't a readable image.
+
+### Off the calling isolate
+
+```dart
+final r = await zxing.decodeAsync(pixels, width: w, height: h);
+final f = await zxing.decodeImageAsync(fileBytes);
+```
+
+Each call runs on a short-lived isolate (`Isolate.run`, ~0.1 ms extra) and copies the bytes over — right for occasional decodes from Flutter's UI isolate. For a camera stream, decode in a long-lived frame-processor isolate instead.
+
+### Reader options
+
+```dart
+zxing.decode(pixels, width: w, height: h, options: const ZxingReaderOptions(
+  tryInvert: false,                        // skip light-on-dark codes
+  isPure: true,                            // clean generated image: much faster
+  binarizer: ZxingBinarizer.globalHistogram,
+  textMode: ZxingTextMode.hex,
+));
+```
+
+| Option | Default | Meaning |
+| :--- | :--- | :--- |
+| `tryHarder`, `tryRotate`, `tryInvert`, `tryDownscale` | `!live` | Extra search passes: more time, more codes found. |
+| `isPure` | `false` | The image is a clean, axis-aligned barcode with no background. |
+| `binarizer` | `localAverage` | `localAverage`, `globalHistogram`, `fixedThreshold` (127), `boolCast` (already black/white). |
+| `textMode` | `hri` | How `text` is rendered: `plain`, `eci`, `hri` (human-readable, e.g. GS1 `(01)…`), `escaped`, `hex`. |
+
+### Results
+
+| `ZxingResult` field | Type | Meaning |
+| :--- | :--- | :--- |
+| `text` | `String` | The content, rendered per `textMode`. |
+| `format` | `ZxingFormat` | The symbology found. |
+| `corners` | `List<int>` | `x0,y0 … x3,y3` (top-left, top-right, bottom-right, bottom-left) in the input's pixel space. |
+| `bytes` | `Uint8List` | The raw content, e.g. a binary QR payload. |
+| `contentType` | `ZxingContentType` | `text`, `binary`, `mixed`, `gs1`, `iso15434`, `unknownEci`. |
+| `orientation` | `int` | Rotation in degrees, clockwise. |
+| `isMirrored`, `isInverted` | `bool` | Mirrored / light-on-dark code. |
+| `ecLevel` | `String` | Error-correction level (e.g. `"M"` for QR); empty if none. |
+| `symbologyIdentifier` | `String` | ISO/IEC 15424 identifier, e.g. `"]Q1"`. |
+
+UPC-A and UPC-E codes are reported as 13-digit GTINs, as zxing-cpp does: UPC-A gains a leading `0` (`036000291452` → `0036000291452`) and UPC-E expands to its EAN-13 form.
+
+### Formats
+
+`ZxingFormat`: `qrCode`, `microQrCode`, `aztec`, `dataMatrix`, `pdf417`, `code128`, `code39`, `code93`, `codabar`, `ean13`, `ean8`, `upcA`, `upcE`, `itf`.
+
+`ZxingFormats.linear` (1D), `ZxingFormats.matrix` (2D), `ZxingFormats.retail` (EAN/UPC) and `ZxingFormats.all`.
+
+## ✏️ Writing
+
+```dart
+ZxingImage img = zxing.encode('Hello', format: ZxingFormat.dataMatrix, width: 200, height: 200);
+// img.width, img.height, img.pixels (8-bit luma, unpadded) — img.toPng() for a PNG file
+Uint8List png = zxing.encodePng('https://dart.dev', format: ZxingFormat.qrCode, width: 300, height: 300);
+```
+
+| Parameter | Default | Meaning |
+| :--- | :--- | :--- |
+| `format` | required | Any `ZxingFormat` except `microQrCode`. |
+| `width`, `height` | `0` | Requested size in pixels; 0 = the smallest that fits. A hint: writers keep the symbol's aspect ratio. |
+| `margin` | symbology default | Quiet zone in pixels. |
+| `ecLevel` | default | QR 0–3 (L/M/Q/H), PDF417 0–8, Aztec 0–100 (%). |
+
+Throws if the text can't be encoded in the format (e.g. letters in an EAN-13).
+
+## 🖥️ Pure Dart (CLI, server)
 
 Same API, nothing to set up — see [example_dart/](example_dart/):
 
@@ -57,33 +169,30 @@ dart build cli -t bin/main.dart   # ships the library next to the binary
 
 Use `dart build cli`, not `dart compile exe`: only `build` bundles the native library.
 
-## 🧭 API Reference
+## ⚡ Performance
 
-```dart
-ZxingResult decodeLuma(
-  Uint8List luma,  // 8-bit luminance (e.g. a YUV frame's Y plane); read only during the call
-  int width,
-  int height,
-  int rowStride,   // may exceed width (padded rows)
-  int formats,     // ZxingFormat bitmask
-  bool live,       // enable the live-camera ladder
-);
-```
+Per call, AOT-compiled on an Apple M1 Pro ([example_dart/bin/benchmark.dart](example_dart/bin/benchmark.dart)):
 
-`ZxingResult`:
+| Call | Time |
+| :--- | ---: |
+| Bridge round trip (empty 8×8 image) | 2 µs |
+| QR, 256×256 luma, `live`, `formats: {qrCode}` | 75 µs |
+| Same, all formats | 83 µs |
+| Same, BGRA pixels | 165 µs |
+| 1080p luma frame, `live`, QR only | 1.1 ms |
+| 1080p frame with a 256×256 `region` | 0.11–0.14 ms |
+| `decodeImage`, 256×256 PNG | 92 µs |
+| `encode` QR, 256×256 | 135 µs |
+| `encodePng` QR, 256×256 | 0.4 ms |
 
-| Field | Type | Meaning |
-| :--- | :--- | :--- |
-| `text` | `String` | Decoded text; empty when nothing was found. |
-| `format` | `int` | The decoded `ZxingFormat` bit; 0 on a miss. |
-| `corners` | `List<int>` | `x0,y0 … x3,y3` (top-left, top-right, bottom-right, bottom-left); empty on a miss. |
+Tips for camera scanning:
 
-`ZxingFormat` bits OR together: `ZxingFormat.qrCode | ZxingFormat.ean13`, or `ZxingFormat.all`.
-
-### Copies
-
-`luma` crosses by pointer when it is a native-backed view (a `NitroBuffer` view, or nitro_camera's `attachDirect` frames); a plain Dart-heap `Uint8List` is copied once (~0.1 ms for 640×480).
+* **Pass luma (YUV) frames** when you can: about 2× faster than BGRA.
+* **Narrow `formats`** to what you expect.
+* **Use a `region`** for a scan window: 10× faster on a 1080p frame.
+* **Keep `live: true`** on a camera stream.
+* **Avoid the copy**: `pixels` cross by pointer when they are a native-backed view (a `NitroBuffer` view, or nitro_camera's `attachDirect` frames); a plain Dart-heap `Uint8List` is copied once per call.
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE). The vendored zxing-cpp is Apache-2.0 ([src/zxing-cpp/LICENSE](src/zxing-cpp/LICENSE)).
+MIT — see [LICENSE](LICENSE). Bundled: zxing-cpp (Apache-2.0, [src/zxing-cpp/LICENSE](src/zxing-cpp/LICENSE)) and stb_image / stb_image_write (public domain or MIT, [src/stb/](src/stb/)).

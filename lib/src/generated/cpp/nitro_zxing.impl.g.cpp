@@ -42,9 +42,27 @@ public:
 
     // ── Methods ──────────────────────────────────────────────────────────────
 
-    NitroCppBuffer readBarcodes(const uint8_t* pixels, size_t pixels_length, int64_t width, int64_t height, int64_t rowStride, ZxingPixelFormat pixelFormat, NitroCppBuffer formats, bool live, int64_t maxSymbols) override {
+    NitroCppBuffer readBarcodes(const uint8_t* pixels, size_t pixels_length, int64_t width, int64_t height, int64_t rowStride, ZxingPixelFormat pixelFormat, NitroCppBuffer options) override {
         // TODO: implement readBarcodes
         throw std::runtime_error("Not implemented: readBarcodes");
+        // return { nullptr, 0 };
+    }
+
+    NitroCppBuffer readBarcodesFromImage(const uint8_t* encoded, size_t encoded_length, NitroCppBuffer options) override {
+        // TODO: implement readBarcodesFromImage
+        throw std::runtime_error("Not implemented: readBarcodesFromImage");
+        // return { nullptr, 0 };
+    }
+
+    NitroCppBuffer writeBarcode(const std::string& text, ZxingFormat format, int64_t width, int64_t height, int64_t margin, int64_t ecLevel) override {
+        // TODO: implement writeBarcode
+        throw std::runtime_error("Not implemented: writeBarcode");
+        // return { nullptr, 0 };
+    }
+
+    NitroCppBuffer lumaToPng(const uint8_t* pixels, size_t pixels_length, int64_t width, int64_t height) override {
+        // TODO: implement lumaToPng
+        throw std::runtime_error("Not implemented: lumaToPng");
         // return { nullptr, 0 };
     }
 };

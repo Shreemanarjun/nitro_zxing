@@ -1,5 +1,5 @@
 // On-device check of the full Flutter → FFI → zxing-cpp path, same cases as
-// test/native/decode_check.cpp, plus a BGRA frame:
+// test/native/decode_check.cpp, plus BGRA, encoding, image files and a region:
 //   flutter test integration_test -d <device>   (iOS, Android, macOS, Linux, Windows)
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +50,28 @@ void main() {
           )
           ?.text,
       'https://margelo.com',
+    );
+
+    // Writing, PNG output and image-file decoding (zxing writers + stb).
+    final png = zxing.encodePng(
+      'on-device',
+      format: ZxingFormat.qrCode,
+      width: 200,
+      height: 200,
+    );
+    expect(zxing.decodeImage(png)?.text, 'on-device');
+    expect((await zxing.decodeImageAsync(png))?.text, 'on-device');
+
+    // Region of interest: only the top-left quarter, which holds no code.
+    expect(
+      zxing.decode(
+        qr,
+        width: 256,
+        height: 256,
+        rowStride: 272,
+        region: (left: 0, top: 0, width: 64, height: 64),
+      ),
+      isNull,
     );
   });
 }

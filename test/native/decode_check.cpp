@@ -7,20 +7,19 @@
 #include "nitro_zxing.native.g.h"
 #include <cassert>
 #include <cstdio>
-#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <vector>
 
-// formats as nitro sends List<ZxingFormat>: [4B count][8B value…].
 static std::vector<ZxingResult> decode(const std::vector<uint8_t>& px, int w, int h, int stride,
-                                       std::vector<int64_t> formats) {
-  std::vector<uint8_t> f(4 + 8 * formats.size());
-  const int32_t n = static_cast<int32_t>(formats.size());
-  std::memcpy(f.data(), &n, 4);
-  std::memcpy(f.data() + 4, formats.data(), 8 * formats.size());
+                                       std::vector<ZxingFormat> formats) {
+  // The bridge hands the impl the options payload without its 4-byte length prefix.
+  auto opts = ZxingReadOptions{std::move(formats), false, false, false, false, false, ZXINGBINARIZER_LOCAL_AVERAGE,
+                               ZXINGTEXTMODE_HRI, 0, true, 0, 0, 0, 0}
+                  .toNativeBuffer();
   auto buf = nitro_zxing_get_impl()->readBarcodes(px.data(), px.size(), w, h, stride, ZXINGPIXELFORMAT_LUMA,
-                                                  {f.data(), f.size()}, true, 0);
+                                                  {opts.data + 4, opts.size - 4});
+  free((void*)opts.data);
   NitroRecordReader r(buf.data + 4, buf.size - 4);
   auto results = r.readIndexedList<ZxingResult>([](NitroRecordReader& r) { return ZxingResult::fromReader(r); });
   free((void*)buf.data);
