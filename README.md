@@ -1,9 +1,35 @@
-# nitro_zxing
+# Nitro ZXing 🔍
 
-[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) barcode decoding for Flutter over
-[nitro](https://pub.dev/packages/nitro) FFI — the Flutter counterpart of
-react-native-nitro-zxing. The implementation is C++ only (`AndroidNativeImpl.cpp` /
-`AppleNativeImpl.cpp`): no JNI, no Swift, no platform channel.
+[zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) barcode and QR decoding for Flutter, built on the **Nitro** FFI bridge — the Flutter counterpart of react-native-nitro-zxing. The implementation is **C++ only** (`AndroidNativeImpl.cpp` / `AppleNativeImpl.cpp`): no JNI, no Swift, no platform channel.
+
+[![Nitro](https://img.shields.io/badge/Powered%20by-Nitro-cyan.svg)](https://pub.dev/packages/nitro)
+[![zxing-cpp](https://img.shields.io/badge/zxing--cpp-3.1.1-orange.svg)](https://github.com/zxing-cpp/zxing-cpp)
+[![Flutter](https://img.shields.io/badge/Flutter-3.3+-blue.svg)](https://flutter.dev)
+
+## 🌟 Features
+
+* **14 symbologies** — QR, Micro QR, Aztec, Data Matrix, PDF417, Code 128/39/93, Codabar, EAN-13/8, UPC-A/E and ITF.
+* **Synchronous & thread-safe** — call it straight from a frame-processor isolate.
+* **Zero-copy input** — native-backed buffers cross by pointer.
+* **Live-camera ladder** — a cheap scan per frame, plus a rotation-tolerant scan on every 4th miss.
+* **Corner points** — the code's quadrilateral in the input image's pixel space.
+
+## 🚀 Installation
+
+```yaml
+dependencies:
+  nitro_zxing: ^0.0.1
+```
+
+Or from the terminal:
+
+```bash
+flutter pub add nitro_zxing
+```
+
+Requires **iOS 13.0+** and Android **minSdk 24**. No permissions — pair it with a camera plugin such as [nitro_camera](https://github.com/Shreemanarjun/nitro_camera) for live scanning.
+
+## ⏱️ Quick Start
 
 ```dart
 import 'package:nitro_zxing/nitro_zxing.dart';
@@ -16,19 +42,43 @@ final r = NitroZxing.instance.decodeLuma(
 if (r.text.isNotEmpty) print('${r.text} at ${r.corners}');
 ```
 
-`decodeLuma` is synchronous and thread-safe, so call it from a worker isolate, not the UI isolate.
+`decodeLuma` is synchronous, so call it from a worker isolate, not the UI isolate.
 
-## Layout
+## 🧭 API Reference
+
+```dart
+ZxingResult decodeLuma(
+  Uint8List luma,  // 8-bit luminance (e.g. a YUV frame's Y plane); read only during the call
+  int width,
+  int height,
+  int rowStride,   // may exceed width (padded rows)
+  int formats,     // ZxingFormat bitmask
+  bool live,       // enable the live-camera ladder
+);
+```
+
+`ZxingResult`:
+
+| Field | Type | Meaning |
+| :--- | :--- | :--- |
+| `text` | `String` | Decoded text; empty when nothing was found. |
+| `format` | `int` | The decoded `ZxingFormat` bit; 0 on a miss. |
+| `corners` | `List<int>` | `x0,y0 … x3,y3` (top-left, top-right, bottom-right, bottom-left); empty on a miss. |
+
+`ZxingFormat` bits OR together: `ZxingFormat.qrCode | ZxingFormat.ean13`, or `ZxingFormat.all`.
+
+### Copies
+
+`luma` crosses by pointer when it is a native-backed view (a `NitroBuffer` view, or nitro_camera's `attachDirect` frames); a plain Dart-heap `Uint8List` is copied once (~0.1 ms for 640×480).
+
+## 🛠️ Development
 
 - `lib/src/nitro_zxing.native.dart` — the nitro spec; `nitrogen generate && nitrogen link` after edits.
 - `src/HybridNitroZxing.cpp` — the decoder (implements the generated `HybridNitroZxing`).
 - `src/zxing-cpp/` — vendored zxing-cpp 3.1.1 core (Apache-2.0), readers only on Android.
-- iOS: `ios/nitro_zxing/Package.swift` builds `ZXingCore` from a symlink to the vendored
-  sources; `Sources/ZXingCoreConfig/Version.h` stands in for the CMake-generated header.
+- iOS: `ios/nitro_zxing/Package.swift` builds `ZXingCore` from a symlink to the vendored sources; `Sources/ZXingCoreConfig/Version.h` stands in for the CMake-generated header.
 - `test/native/decode_check.cpp` — host decode check (instructions in its header).
 
-## Copies
+## 📄 License
 
-`luma` crosses by pointer when it is a native-backed view (a `NitroBuffer` view, or
-nitro_camera's `attachDirect` frames); a plain Dart-heap `Uint8List` is copied once
-(~0.1 ms for 640×480).
+MIT — see [LICENSE](LICENSE). The vendored zxing-cpp is Apache-2.0 ([src/zxing-cpp/LICENSE](src/zxing-cpp/LICENSE)).

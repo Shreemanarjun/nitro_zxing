@@ -14,13 +14,25 @@ class ZxingResult {
   /// (top-left, top-right, bottom-right, bottom-left); empty on a miss.
   final List<int> corners;
 
-  const ZxingResult({required this.text, required this.format, required this.corners});
+  const ZxingResult({
+    required this.text,
+    required this.format,
+    required this.corners,
+  });
 }
 
 /// zxing-cpp (C++) barcode decoding over FFI — the Flutter counterpart of
 /// react-native-nitro-zxing. Calls are synchronous and thread-safe, so they
 /// can run straight on a frame-processor isolate.
-@NitroModule(lib: 'nitro_zxing', ios: AppleNativeImpl.cpp, android: AndroidNativeImpl.cpp)
+@NitroModule(
+  lib: 'nitro_zxing',
+  ios: AppleNativeImpl.cpp,
+  android: AndroidNativeImpl.cpp,
+  linux: LinuxNativeImpl.cpp,
+  macos: AppleNativeImpl.cpp,
+  windows: WindowsNativeImpl.cpp,
+  web: WebNativeImpl.wasm,
+)
 abstract class NitroZxing extends HybridObject {
   static final NitroZxing instance = _NitroZxingImpl();
 
@@ -29,5 +41,12 @@ abstract class NitroZxing extends HybridObject {
   /// [ZxingFormat] values. [live] enables the live-camera ladder: a plain scan
   /// every call, plus a rotation-tolerant scan on every 4th call that misses.
   /// The buffer is only read during the call.
-  ZxingResult decodeLuma(@zeroCopy Uint8List luma, int width, int height, int rowStride, int formats, bool live);
+  ZxingResult decodeLuma(
+    @zeroCopy Uint8List luma,
+    int width,
+    int height,
+    int rowStride,
+    int formats,
+    bool live,
+  );
 }

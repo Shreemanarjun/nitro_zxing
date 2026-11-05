@@ -1,7 +1,18 @@
 name: nitro_zxing
-description: "A new Flutter FFI plugin project."
+description: >-
+  zxing-cpp barcode and QR decoding for Flutter over the Nitro FFI bridge —
+  C++-only on Android and iOS, synchronous, thread-safe and zero-copy for
+  camera frames.
 version: 0.0.1
-homepage:
+homepage: https://github.com/Shreemanarjun/nitro_zxing
+repository: https://github.com/Shreemanarjun/nitro_zxing
+issue_tracker: https://github.com/Shreemanarjun/nitro_zxing/issues
+topics:
+  - barcode-scanner
+  - qr-code
+  - zxing
+  - ffi
+  - camera
 
 environment:
   sdk: ^3.13.4
