@@ -140,15 +140,17 @@ class ZxingResult {
   final Uint8List bytes;
   final ZxingContentType contentType;
 
-  /// Rotation of the barcode in degrees, clockwise.
+  /// Rotation of the barcode in degrees, clockwise, in -180…180 (a code
+  /// turned 270° clockwise reads as -90).
   final int orientation;
   final bool isMirrored;
 
   /// Light-on-dark (inverted) barcode.
   final bool isInverted;
 
-  /// Error-correction level as zxing reports it (e.g. "M" for QR); empty if
-  /// the symbology has none.
+  /// Error-correction level as zxing reports it: a letter for QR ("L", "M",
+  /// "Q", "H"), a percentage for PDF417 / Aztec (e.g. "58%"); empty if the
+  /// symbology has none.
   final String ecLevel;
 
   /// ISO/IEC 15424 symbology identifier, e.g. "]Q1".
@@ -220,9 +222,9 @@ abstract class NitroZxing extends HybridObject {
   );
 
   /// Renders [text] as a [format] barcode. [width]/[height] 0 = the smallest
-  /// size; [margin] -1 = the symbology's default quiet zone; [ecLevel] -1 =
-  /// default (QR 0–3 = L/M/Q/H, PDF417 0–8, Aztec 0–100 %). Throws if [text]
-  /// can't be encoded in [format].
+  /// size; [margin] -1 = the symbology's default quiet zone; [ecLevel] 0–8
+  /// (-1 = default) for QR, PDF417 and Aztec only — see `encode`. Throws if
+  /// [text] can't be encoded in [format].
   ZxingImage writeBarcode(
     String text,
     ZxingFormat format,

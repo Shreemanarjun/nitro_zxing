@@ -395,6 +395,31 @@ void main() {
       );
       expect(zxing.decodeImage(png)?.text, 'hi');
     });
+    test('QR ecLevel 0–8 maps to L/M/Q/H; out of range is ignored', () {
+      String levelOf(int? ecLevel) {
+        final img = zxing.encode(
+          'ec',
+          format: ZxingFormat.qrCode,
+          ecLevel: ecLevel,
+        );
+        return zxing
+            .decode(img.pixels, width: img.width, height: img.height)!
+            .ecLevel;
+      }
+
+      expect([null, 0, 2, 3, 4, 5, 6, 7, 8, 9].map(levelOf), [
+        'L',
+        'L',
+        'L',
+        'M',
+        'M',
+        'Q',
+        'Q',
+        'H',
+        'H',
+        'L',
+      ]);
+    });
     test('throws on text the format cannot hold, and on Micro QR', () {
       expect(
         () => zxing.encode('letters', format: ZxingFormat.ean13),

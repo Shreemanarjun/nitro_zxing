@@ -35,6 +35,8 @@ Tested with Flutter's default targets: Android **minSdk 24**, **iOS 15.0** and *
 ## ⏱️ Quick Start
 
 ```dart
+import 'dart:io';
+
 import 'package:nitro_zxing/nitro_zxing.dart';
 
 final zxing = NitroZxing.instance;
@@ -90,7 +92,7 @@ ZxingResult? r = zxing.decodeImage(fileBytes);         // PNG, JPEG, BMP, GIF, T
 List<ZxingResult> all = zxing.decodeImageAll(fileBytes);
 ```
 
-Same `formats`, `region`, `options` and `maxSymbols` parameters. Returns null / empty if the bytes aren't a readable image.
+Same `formats`, `region` and `options` parameters (plus `maxSymbols` on `decodeImageAll`). Returns null / empty if the bytes aren't a readable image.
 
 ### Off the calling isolate
 
@@ -99,14 +101,14 @@ final r = await zxing.decodeAsync(pixels, width: w, height: h);
 final f = await zxing.decodeImageAsync(fileBytes);
 ```
 
-Each call runs on a short-lived isolate (`Isolate.run`, ~0.1 ms extra) and copies the bytes over — right for occasional decodes from Flutter's UI isolate. For a camera stream, decode in a long-lived frame-processor isolate instead.
+`decodeAsync` takes `decode`'s parameters except `live`; `decodeImageAsync` takes `decodeImage`'s. Each call runs on a short-lived isolate (`Isolate.run`, ~0.1 ms extra) and copies the bytes over — right for occasional decodes from Flutter's UI isolate. For a camera stream, decode in a long-lived frame-processor isolate instead.
 
 ### Reader options
 
 ```dart
 zxing.decode(pixels, width: w, height: h, options: const ZxingReaderOptions(
   tryInvert: false,                        // skip light-on-dark codes
-  isPure: true,                            // clean generated image: much faster
+  isPure: true,                            // clean generated image: ~1.6× faster
   binarizer: ZxingBinarizer.globalHistogram,
   textMode: ZxingTextMode.hex,
 ));
@@ -128,9 +130,9 @@ zxing.decode(pixels, width: w, height: h, options: const ZxingReaderOptions(
 | `corners` | `List<int>` | `x0,y0 … x3,y3` (top-left, top-right, bottom-right, bottom-left) in the input's pixel space. |
 | `bytes` | `Uint8List` | The raw content, e.g. a binary QR payload. |
 | `contentType` | `ZxingContentType` | `text`, `binary`, `mixed`, `gs1`, `iso15434`, `unknownEci`. |
-| `orientation` | `int` | Rotation in degrees, clockwise. |
+| `orientation` | `int` | Rotation in degrees, clockwise, in −180…180 (270° reads as `-90`). |
 | `isMirrored`, `isInverted` | `bool` | Mirrored / light-on-dark code. |
-| `ecLevel` | `String` | Error-correction level (e.g. `"M"` for QR); empty if none. |
+| `ecLevel` | `String` | Error-correction level: a letter for QR (`"L"`, `"M"`, `"Q"`, `"H"`), a percentage for PDF417 / Aztec (e.g. `"58%"`); empty if none. |
 | `symbologyIdentifier` | `String` | ISO/IEC 15424 identifier, e.g. `"]Q1"`. |
 
 UPC-A and UPC-E codes are reported as 13-digit GTINs, as zxing-cpp does: UPC-A gains a leading `0` (`036000291452` → `0036000291452`) and UPC-E expands to its EAN-13 form.
@@ -154,7 +156,7 @@ Uint8List png = zxing.encodePng('https://dart.dev', format: ZxingFormat.qrCode, 
 | `format` | required | Any `ZxingFormat` except `microQrCode`. |
 | `width`, `height` | `0` | Requested size in pixels; 0 = the smallest that fits. A hint: writers keep the symbol's aspect ratio. |
 | `margin` | symbology default | Quiet zone in pixels. |
-| `ecLevel` | default | QR 0–3 (L/M/Q/H), PDF417 0–8, Aztec 0–100 (%). |
+| `ecLevel` | default | One 0–8 scale, higher = more error correction: QR 0–2 → L, 3–4 → M, 5–6 → Q, 7–8 → H (default L); PDF417 its level 0–8; Aztec a minimum of level × 12.5 %. Ignored for other formats and outside 0–8. |
 
 Throws if the text can't be encoded in the format (e.g. letters in an EAN-13).
 

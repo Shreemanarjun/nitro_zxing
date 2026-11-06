@@ -69,7 +69,7 @@ class ZxingReaderOptions {
   final bool? tryDownscale;
 
   /// The image is a clean, axis-aligned barcode with no background
-  /// (e.g. a generated image); much faster.
+  /// (e.g. a generated image); ~1.6× faster on a 256×256 generated QR.
   final bool isPure;
   final ZxingBinarizer binarizer;
   final ZxingTextMode textMode;
@@ -230,7 +230,10 @@ extension NitroZxingDecode on NitroZxing {
   ///
   /// [width]/[height] 0 = the smallest size that fits; larger sizes scale the
   /// modules up. [margin] is the quiet zone in pixels (null = the symbology's
-  /// default). [ecLevel]: QR 0–3 (L/M/Q/H), PDF417 0–8, Aztec 0–100 (%).
+  /// default). [ecLevel] is one 0–8 scale, higher = more error correction:
+  /// QR 0–2 → L, 3–4 → M, 5–6 → Q, 7–8 → H (default L); PDF417 its level 0–8;
+  /// Aztec a minimum of level × 12.5 % (short texts may get more). Ignored
+  /// for other formats and outside 0–8.
   /// Throws if [text] can't be encoded in [format] (e.g. letters in an EAN-13,
   /// or [ZxingFormat.microQrCode], which can't be written).
   ZxingImage encode(

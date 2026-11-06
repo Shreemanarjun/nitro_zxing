@@ -10,9 +10,7 @@ import 'package:nitro_zxing/nitro_zxing.dart';
 void main(List<String> args) {
   // A 256×256 luma image (rowStride 272) holding a QR code.
   final luma = File(
-    args.isNotEmpty
-        ? args.first
-        : '../test/native/qr_nitro_256_stride272.luma',
+    args.isNotEmpty ? args.first : '../test/native/qr_nitro_256_stride272.luma',
   ).readAsBytesSync();
   final r = NitroZxing.instance.decode(
     luma,
