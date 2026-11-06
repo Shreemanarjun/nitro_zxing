@@ -19,8 +19,11 @@ WORKDIR /w
 COPY . .
 RUN cmake -S src -B build/lib -G Ninja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build/lib \
- && g++ -std=c++20 -Ilib/src/generated/cpp -Isrc -Isrc/native test/native/decode_check.cpp \
-      -Lbuild/lib -lnitro_zxing -Wl,-rpath,/w/build/lib -o build/decode_check \
+ && gcc -c -O2 -DDART_SHARED_LIB -Isrc/native src/dart_api_dl.c -o build/dart_api_dl.o \
+ && g++ -std=c++20 -O2 -DDART_SHARED_LIB -Ilib/src/generated/cpp -Isrc -Isrc/native -Isrc/zxing-cpp/core/src \
+      -Ibuild/lib/zxing-cpp test/native/decode_check.cpp src/HybridNitroZxing.cpp src/nitro_zxing.cpp \
+      lib/src/generated/cpp/nitro_zxing.bridge.g.cpp build/dart_api_dl.o build/lib/zxing-cpp/libZXing.a \
+      -o build/decode_check \
  && build/decode_check test/native/qr_nitro_256_stride272.luma
 RUN dart pub get && dart test test/nitro_zxing_vm_test.dart
 RUN cd example_dart && dart pub get \

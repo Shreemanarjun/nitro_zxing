@@ -1,5 +1,5 @@
 // On-device check of the full Flutter → FFI → zxing-cpp path, same cases as
-// test/native/decode_check.cpp, plus BGRA, encoding, image files and a region:
+// test/native/decode_check.cpp, plus BGRA, encoding, image files, a region and read-only formats:
 //   flutter test integration_test -d <device>   (iOS, Android, macOS, Linux, Windows)
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,5 +73,12 @@ void main() {
       ),
       isNull,
     );
+
+    // Read-only formats (zxing-cpp samples bundled as assets).
+    Future<ZxingResult?> sample(String name) async => zxing.decodeImage(
+      (await rootBundle.load('assets/$name.png')).buffer.asUint8List(),
+    );
+    expect((await sample('rmqr'))?.format, ZxingFormat.rmqrCode);
+    expect((await sample('databar'))?.text, '(01)04412345678909');
   });
 }

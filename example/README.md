@@ -1,17 +1,18 @@
-# nitro_zxing_example
+# nitro_zxing example
 
-Demonstrates how to use the nitro_zxing plugin.
+A two-tab Flutter app showing the whole API:
 
-## Getting Started
+- **Decode** — decodes a raw camera-style luma frame, barcodes generated with
+  `encode`, and zxing-cpp samples of the read-only formats (rMQR, MaxiCode,
+  GS1 DataBar), drawing each result's outline with `topLeft` … `bottomLeft`
+  and listing its format, content type, error-correction level and `bounds`.
+- **Generate** — type text, pick any writable format (and a QR
+  error-correction level), and see the `encodePng` image plus what it reads
+  back as.
 
-This project is a starting point for a Flutter application.
+```bash
+flutter run
+flutter test integration_test -d <device>   # on-device decode/encode checks
+```
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+For plain Dart (CLI / server) see [../example_dart](../example_dart).

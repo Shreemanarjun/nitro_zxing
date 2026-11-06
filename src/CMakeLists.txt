@@ -27,6 +27,11 @@ set(ZXING_READERS ON CACHE BOOL "" FORCE)
 set(ZXING_WRITERS OLD CACHE STRING "" FORCE)
 set(ZXING_C_API OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF)
+# Export only the nitro bridge (NITRO_EXPORT = visibility default): zxing and
+# stb stay private, so another copy elsewhere in an app can't clash with them.
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/zxing-cpp/core" "${CMAKE_BINARY_DIR}/zxing-cpp" EXCLUDE_FROM_ALL)
 
 add_library(nitro_zxing SHARED

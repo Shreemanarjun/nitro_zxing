@@ -27,15 +27,20 @@ abstract final class ZxingFormats {
     ZxingFormat.itf,
     ZxingFormat.upcA,
     ZxingFormat.upcE,
+    ZxingFormat.dataBar,
+    ZxingFormat.dataBarExpanded,
+    ZxingFormat.dataBarLimited,
   };
 
-  /// 2D (matrix) codes.
+  /// 2D (matrix and stacked) codes.
   static const matrix = {
     ZxingFormat.qrCode,
     ZxingFormat.microQrCode,
+    ZxingFormat.rmqrCode,
     ZxingFormat.aztec,
     ZxingFormat.dataMatrix,
     ZxingFormat.pdf417,
+    ZxingFormat.maxiCode,
   };
 
   /// Retail product codes (EAN / UPC).
@@ -46,8 +51,48 @@ abstract final class ZxingFormats {
     ZxingFormat.upcE,
   };
 
+  /// GS1 DataBar variants (retail, coupons, fresh food).
+  static const dataBar = {
+    ZxingFormat.dataBar,
+    ZxingFormat.dataBarExpanded,
+    ZxingFormat.dataBarLimited,
+  };
+
+  /// Formats `encode` / `encodePng` can write (every format but Micro QR,
+  /// rMQR, MaxiCode and DataBar, which zxing-cpp's writers don't support).
+  static const writable = {
+    ZxingFormat.qrCode,
+    ZxingFormat.aztec,
+    ZxingFormat.dataMatrix,
+    ZxingFormat.pdf417,
+    ZxingFormat.code128,
+    ZxingFormat.code39,
+    ZxingFormat.code93,
+    ZxingFormat.codabar,
+    ZxingFormat.ean13,
+    ZxingFormat.ean8,
+    ZxingFormat.upcA,
+    ZxingFormat.upcE,
+    ZxingFormat.itf,
+  };
+
   /// Every format (the same as passing an empty set).
   static const all = {...linear, ...matrix};
+}
+
+/// Named `ecLevel` values for QR codes in `encode` / `encodePng`.
+abstract final class ZxingQrEcLevel {
+  /// L, recovers ~7 % (the default).
+  static const low = 0;
+
+  /// M, recovers ~15 %.
+  static const medium = 3;
+
+  /// Q, recovers ~25 %.
+  static const quartile = 5;
+
+  /// H, recovers ~30 %: survives logos and damage best.
+  static const high = 7;
 }
 
 /// A rectangle of the image to search, in pixels.
@@ -105,6 +150,32 @@ class ZxingReaderOptions {
     regionWidth: region?.width ?? 0,
     regionHeight: region?.height ?? 0,
   );
+}
+
+/// Geometry helpers for drawing overlays, from [ZxingResult.corners].
+extension ZxingResultGeometry on ZxingResult {
+  ({int x, int y}) _corner(int i) => (x: corners[2 * i], y: corners[2 * i + 1]);
+  ({int x, int y}) get topLeft => _corner(0);
+  ({int x, int y}) get topRight => _corner(1);
+  ({int x, int y}) get bottomRight => _corner(2);
+  ({int x, int y}) get bottomLeft => _corner(3);
+
+  /// The axis-aligned rectangle enclosing the four corners.
+  ZxingRegion get bounds {
+    var (minX, minY, maxX, maxY) = (
+      corners[0],
+      corners[1],
+      corners[0],
+      corners[1],
+    );
+    for (var i = 2; i < corners.length; i += 2) {
+      if (corners[i] < minX) minX = corners[i];
+      if (corners[i] > maxX) maxX = corners[i];
+      if (corners[i + 1] < minY) minY = corners[i + 1];
+      if (corners[i + 1] > maxY) maxY = corners[i + 1];
+    }
+    return (left: minX, top: minY, width: maxX - minX, height: maxY - minY);
+  }
 }
 
 /// The PNG encoding of this image.
@@ -211,6 +282,33 @@ extension NitroZxingDecode on NitroZxing {
     ),
   );
 
+  /// [decodeAll] on a background isolate. [pixels] is copied to that isolate.
+  Future<List<ZxingResult>> decodeAllAsync(
+    Uint8List pixels, {
+    required int width,
+    required int height,
+    int rowStride = 0,
+    ZxingPixelFormat pixelFormat = ZxingPixelFormat.luma,
+    Set<ZxingFormat> formats = const {},
+    ZxingRegion? region,
+    ZxingReaderOptions options = const ZxingReaderOptions(),
+    int maxSymbols = 0,
+  }) => Isolate.run(
+    () => NitroZxing.instance
+        .decodeAll(
+          pixels,
+          width: width,
+          height: height,
+          rowStride: rowStride,
+          pixelFormat: pixelFormat,
+          formats: formats,
+          region: region,
+          options: options,
+          maxSymbols: maxSymbols,
+        )
+        .toList(), // nitro's native-backed list can't cross isolates
+  );
+
   /// [decodeImage] on a background isolate.
   Future<ZxingResult?> decodeImageAsync(
     Uint8List file, {
@@ -226,16 +324,39 @@ extension NitroZxingDecode on NitroZxing {
     ),
   );
 
+  /// [decodeImageAll] on a background isolate.
+  Future<List<ZxingResult>> decodeImageAllAsync(
+    Uint8List file, {
+    Set<ZxingFormat> formats = const {},
+    ZxingRegion? region,
+    ZxingReaderOptions options = const ZxingReaderOptions(),
+    int maxSymbols = 0,
+  }) => Isolate.run(
+    () => NitroZxing.instance
+        .decodeImageAll(
+          file,
+          formats: formats,
+          region: region,
+          options: options,
+          maxSymbols: maxSymbols,
+        )
+        .toList(), // nitro's native-backed list can't cross isolates
+  );
+
   /// Renders [text] as a [format] barcode image (8-bit luma).
   ///
   /// [width]/[height] 0 = the smallest size that fits; larger sizes scale the
-  /// modules up. [margin] is the quiet zone in pixels (null = the symbology's
+  /// modules up. A 1D code with [height] 0 is drawn 40 % as tall as it is
+  /// wide; a square 2D code given only one of [width]/[height] uses it for
+  /// both. [margin] is the quiet zone in pixels (null = the symbology's
   /// default). [ecLevel] is one 0–8 scale, higher = more error correction:
   /// QR 0–2 → L, 3–4 → M, 5–6 → Q, 7–8 → H (default L); PDF417 its level 0–8;
   /// Aztec a minimum of level × 12.5 % (short texts may get more). Ignored
-  /// for other formats and outside 0–8.
-  /// Throws if [text] can't be encoded in [format] (e.g. letters in an EAN-13,
-  /// or [ZxingFormat.microQrCode], which can't be written).
+  /// for other formats and outside 0–8 (see [ZxingQrEcLevel]).
+  ///
+  /// Throws an [ArgumentError] for a format outside [ZxingFormats.writable],
+  /// and an exception if [text] can't be encoded in [format] (e.g. letters in
+  /// an EAN-13).
   ZxingImage encode(
     String text, {
     required ZxingFormat format,
@@ -243,7 +364,29 @@ extension NitroZxingDecode on NitroZxing {
     int height = 0,
     int? margin,
     int? ecLevel,
-  }) => writeBarcode(text, format, width, height, margin ?? -1, ecLevel ?? -1);
+  }) {
+    if (!ZxingFormats.writable.contains(format)) {
+      throw ArgumentError.value(
+        format,
+        'format',
+        'zxing-cpp cannot write this format',
+      );
+    }
+    final linear = ZxingFormats.linear.contains(format);
+    var (w, h) = (width, height);
+    if (!linear && format != ZxingFormat.pdf417 && (w == 0) != (h == 0)) {
+      w = h = w + h; // square symbol: one given side sets both
+    }
+    final img = writeBarcode(text, format, w, h, margin ?? -1, ecLevel ?? -1);
+    if (!linear || height > 0 || img.height != 1) return img;
+    // zxing draws a height-0 1D code as a single row: repeat it.
+    final rows = (img.width * 2 / 5).round();
+    final pixels = Uint8List(img.width * rows);
+    for (var y = 0; y < rows; y++) {
+      pixels.setRange(y * img.width, (y + 1) * img.width, img.pixels);
+    }
+    return ZxingImage(width: img.width, height: rows, pixels: pixels);
+  }
 
   /// [encode] straight to a PNG file's bytes (e.g. for Flutter's
   /// `Image.memory` or writing to disk).

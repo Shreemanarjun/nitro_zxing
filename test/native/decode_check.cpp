@@ -1,8 +1,12 @@
 // Assert-based check of the nitro_zxing decoder through the generated interface.
-// Run from the package root:
-//   cmake -S src -B build/host && cmake --build build/host
-//   clang++ -std=c++20 -Ilib/src/generated/cpp -Isrc -Isrc/native test/native/decode_check.cpp \
-//     -Lbuild/host -lnitro_zxing -Wl,-rpath,build/host -o build/decode_check
+// Compiled together with the sources, as the shared library exports only the
+// nitro bridge. Run from the package root:
+//   cmake -S src -B build/host -DCMAKE_BUILD_TYPE=Release && cmake --build build/host
+//   cc -c -O2 -DDART_SHARED_LIB -Isrc/native src/dart_api_dl.c -o build/dart_api_dl.o
+//   c++ -std=c++20 -O2 -DDART_SHARED_LIB -Ilib/src/generated/cpp -Isrc -Isrc/native -Isrc/zxing-cpp/core/src \
+//     -Ibuild/host/zxing-cpp test/native/decode_check.cpp src/HybridNitroZxing.cpp src/nitro_zxing.cpp \
+//     lib/src/generated/cpp/nitro_zxing.bridge.g.cpp build/dart_api_dl.o build/host/zxing-cpp/libZXing.a \
+//     -o build/decode_check
 //   build/decode_check test/native/qr_nitro_256_stride272.luma
 #include "nitro_zxing.native.g.h"
 #include <cassert>

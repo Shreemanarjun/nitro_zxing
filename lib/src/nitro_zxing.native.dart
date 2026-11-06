@@ -2,7 +2,8 @@ import 'package:nitro/nitro.dart';
 
 part 'nitro_zxing.g.dart';
 
-/// A barcode symbology zxing-cpp can read (and, except [microQrCode], write).
+/// A barcode symbology zxing-cpp can read. All but [microQrCode], [rmqrCode],
+/// [maxiCode] and the DataBar formats can also be written.
 @HybridEnum()
 enum ZxingFormat {
   qrCode,
@@ -19,6 +20,21 @@ enum ZxingFormat {
   upcA,
   upcE,
   itf,
+
+  /// Rectangular Micro QR (rMQR).
+  rmqrCode,
+
+  /// MaxiCode (parcel logistics).
+  maxiCode,
+
+  /// GS1 DataBar Omnidirectional, including the Stacked variants.
+  dataBar,
+
+  /// GS1 DataBar Expanded, including Expanded Stacked.
+  dataBarExpanded,
+
+  /// GS1 DataBar Limited.
+  dataBarLimited,
 }
 
 /// How the pixels passed to a decode call are laid out.
@@ -38,6 +54,12 @@ enum ZxingPixelFormat {
 
   /// 3 bytes per pixel, B G R.
   bgr,
+
+  /// 4 bytes per pixel, A R G B.
+  argb,
+
+  /// 4 bytes per pixel, A B G R.
+  abgr,
 }
 
 /// What kind of data a barcode holds.

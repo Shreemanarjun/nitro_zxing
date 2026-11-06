@@ -9,7 +9,10 @@
 #include "MultiFormatWriter.h"
 #include "ReadBarcode.h"
 
-// Image file decoding and PNG output, from memory only.
+// Image file decoding and PNG output, from memory only. STATIC keeps stb's
+// symbols private to this library (no clash with another copy in the app).
+#define STB_IMAGE_STATIC
+#define STBIW_STATIC
 #define STBI_NO_STDIO
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
@@ -17,9 +20,11 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
+#include <array>
 #include <atomic>
+#include <climits>
 #include <cstdlib>
-#include <cstring>
+#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <stdexcept>
@@ -30,20 +35,42 @@ namespace {
 
 using ZXing::BarcodeFormat;
 
-// Indexed by the generated ZxingFormat enum (lib/src/nitro_zxing.native.dart).
-constexpr BarcodeFormat kFormats[] = {
-    BarcodeFormat::QRCode, BarcodeFormat::MicroQRCode, BarcodeFormat::Aztec,
-    BarcodeFormat::DataMatrix, BarcodeFormat::PDF417, BarcodeFormat::Code128,
-    BarcodeFormat::Code39, BarcodeFormat::Code93, BarcodeFormat::Codabar,
-    BarcodeFormat::EAN13, BarcodeFormat::EAN8, BarcodeFormat::UPCA,
-    BarcodeFormat::UPCE, BarcodeFormat::ITF,
+// Indexed by the generated ZxingFormat enum (lib/src/nitro_zxing.native.dart):
+// the zxing formats each value reads (first = the one written), None-padded.
+// DataBar splits into its variants so results report the variant they are.
+using F = BarcodeFormat;
+constexpr std::array<F, 3> kFormats[] = {
+    {F::QRCode},  // the family (zxing also reports QR results as it); Micro QR / rMQR hits are filtered in read()
+    {F::MicroQRCode},
+    {F::Aztec},
+    {F::DataMatrix},
+    {F::PDF417},
+    {F::Code128},
+    {F::Code39},
+    {F::Code93},
+    {F::Codabar},
+    {F::EAN13},
+    {F::EAN8},
+    {F::UPCA},
+    {F::UPCE},
+    {F::ITF},
+    {F::RMQRCode},
+    {F::MaxiCode},
+    {F::DataBarOmni, F::DataBarStk, F::DataBarStkOmni},
+    {F::DataBarExp, F::DataBarExpStk},
+    {F::DataBarLtd},
 };
 constexpr int64_t kFormatCount = static_cast<int64_t>(std::size(kFormats));
 
+// The formats zxing-cpp's legacy (libzint-free) writers can render.
+constexpr F kWritable[] = {F::QRCode, F::Aztec,   F::DataMatrix, F::PDF417, F::Code128, F::Code39, F::Code93,
+                           F::Codabar, F::EAN13, F::EAN8,       F::UPCA,   F::UPCE,    F::ITF};
+
 // Indexed by the generated ZxingPixelFormat enum: zxing layout, bytes per pixel.
 constexpr std::pair<ZXing::ImageFormat, int> kPixelFormats[] = {
-    {ZXing::ImageFormat::Lum, 1}, {ZXing::ImageFormat::BGRA, 4}, {ZXing::ImageFormat::RGBA, 4},
-    {ZXing::ImageFormat::RGB, 3}, {ZXing::ImageFormat::BGR, 3},
+    {ZXing::ImageFormat::Lum, 1},  {ZXing::ImageFormat::BGRA, 4}, {ZXing::ImageFormat::RGBA, 4},
+    {ZXing::ImageFormat::RGB, 3},  {ZXing::ImageFormat::BGR, 3},  {ZXing::ImageFormat::ARGB, 4},
+    {ZXing::ImageFormat::ABGR, 4},
 };
 
 // Indexed by the generated ZxingBinarizer / ZxingTextMode enums.
@@ -60,11 +87,18 @@ T pick(const T (&table)[N], int64_t i, T fallback) {
   return i >= 0 && i < static_cast<int64_t>(N) ? table[i] : fallback;
 }
 
-// -1 for a symbology outside ZxingFormat (can't happen: the reader is limited to them).
-int64_t formatOf(const ZXing::Barcode& b) {
+int64_t indexOf(F f) {
   for (int64_t i = 0; i < kFormatCount; i++)
-    if (b.format() == kFormats[i] || b.symbology() == kFormats[i]) return i;
+    for (const F g : kFormats[i])
+      if (g != F::None && g == f) return i;
   return -1;
+}
+
+// Exact variant first (MicroQRCode and rMQR are in the QR family), then the
+// family (QR Model 2 → qrCode). -1 can't happen: the reader is limited to these.
+int64_t formatOf(const ZXing::Barcode& b) {
+  const int64_t exact = indexOf(b.format());
+  return exact >= 0 ? exact : indexOf(b.symbology());
 }
 
 NitroCppBuffer encode(const std::vector<ZxingResult>& results) {
@@ -79,10 +113,13 @@ class NitroZxingImpl final : public HybridNitroZxing {
                               int64_t rowStride, ZxingPixelFormat pixelFormat, NitroCppBuffer options) override {
     if (pixelFormat < 0 || pixelFormat >= static_cast<int>(std::size(kPixelFormats))) return encode({});
     const auto [imageFormat, bpp] = kPixelFormats[pixelFormat];
+    // zxing's ImageView takes int sizes: reject anything that wouldn't fit
+    // (also keeps stride * height far from int64 overflow).
+    if (!pixels || width <= 0 || height <= 0 || width > INT_MAX / bpp || height > INT_MAX || rowStride > INT_MAX)
+      return encode({});
     const int64_t rowBytes = width * bpp;
     const int64_t stride = rowStride > 0 ? rowStride : rowBytes;
-    if (!pixels || width <= 0 || height <= 0 || stride < rowBytes ||
-        pixels_length < static_cast<size_t>(stride * (height - 1) + rowBytes))
+    if (stride < rowBytes || pixels_length < static_cast<size_t>(stride * (height - 1) + rowBytes))
       return encode({});
     return read(ZXing::ImageView(pixels, static_cast<int>(width), static_cast<int>(height), imageFormat,
                                  static_cast<int>(stride)),
@@ -92,6 +129,7 @@ class NitroZxingImpl final : public HybridNitroZxing {
   NitroCppBuffer readBarcodesFromImage(const uint8_t* encoded, size_t encoded_length,
                                        NitroCppBuffer options) override {
     int w = 0, h = 0, channels = 0;
+    if (encoded_length > INT_MAX) return encode({});
     std::unique_ptr<stbi_uc, void (*)(void*)> pixels(
         encoded ? stbi_load_from_memory(encoded, static_cast<int>(encoded_length), &w, &h, &channels, 1) : nullptr,
         stbi_image_free);
@@ -101,8 +139,10 @@ class NitroZxingImpl final : public HybridNitroZxing {
 
   NitroCppBuffer writeBarcode(const std::string& text, ZxingFormat format, int64_t width, int64_t height,
                               int64_t margin, int64_t ecLevel) override {
-    if (format < 0 || format >= kFormatCount || kFormats[format] == BarcodeFormat::MicroQRCode)
+    if (format < 0 || format >= kFormatCount ||
+        std::find(std::begin(kWritable), std::end(kWritable), kFormats[format][0]) == std::end(kWritable))
       throw std::invalid_argument("nitro_zxing: writing this format is not supported");
+    if (width > INT_MAX || height > INT_MAX) throw std::invalid_argument("nitro_zxing: size too large");
     // Legacy writers (deprecated upstream for the libzint-based API, which
     // nitro_zxing doesn't bundle).
 #if defined(_MSC_VER)
@@ -111,7 +151,7 @@ class NitroZxingImpl final : public HybridNitroZxing {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    ZXing::MultiFormatWriter writer(kFormats[format]);
+    ZXing::MultiFormatWriter writer(kFormats[format][0]);
 #if !defined(_MSC_VER)
 #pragma GCC diagnostic pop
 #endif
@@ -124,19 +164,19 @@ class NitroZxingImpl final : public HybridNitroZxing {
   }
 
   NitroCppBuffer lumaToPng(const uint8_t* pixels, size_t pixels_length, int64_t width, int64_t height) override {
-    if (!pixels || width <= 0 || height <= 0 || pixels_length < static_cast<size_t>(width * height))
+    if (!pixels || width <= 0 || height <= 0 || width > INT_MAX || height > INT_MAX / width ||
+        pixels_length < static_cast<size_t>(width * height))
       throw std::invalid_argument("nitro_zxing: lumaToPng needs width*height luma bytes");
-    std::vector<uint8_t> png;
-    stbi_write_png_to_func(
-        [](void* ctx, void* data, int size) {
-          auto* out = static_cast<std::vector<uint8_t>*>(ctx);
-          out->insert(out->end(), static_cast<uint8_t*>(data), static_cast<uint8_t*>(data) + size);
-        },
-        &png, static_cast<int>(width), static_cast<int>(height), 1, pixels, static_cast<int>(width));
-    // @zeroCopy return: a malloc'd buffer the bridge frees once Dart drops it.
-    auto* out = static_cast<uint8_t*>(std::malloc(png.size()));
-    std::memcpy(out, png.data(), png.size());
-    return {out, png.size()};
+    // stb mallocs the PNG; @zeroCopy hands that buffer straight to Dart, and
+    // the bridge frees it once Dart drops it (no extra copy).
+    int length = 0;
+    unsigned char* png = stbi_write_png_to_mem(pixels, static_cast<int>(width), static_cast<int>(width),
+                                               static_cast<int>(height), 1, &length);
+    if (!png || length <= 0) {
+      std::free(png);
+      throw std::runtime_error("nitro_zxing: PNG encoding failed");
+    }
+    return {png, static_cast<size_t>(length)};
   }
 
  private:
@@ -151,10 +191,15 @@ class NitroZxingImpl final : public HybridNitroZxing {
                             static_cast<int>(o.regionWidth), static_cast<int>(o.regionHeight));
     }
 
-    std::vector<BarcodeFormat> wanted;
+    std::vector<F> wanted;
+    const auto add = [&](int64_t i) {
+      for (const F f : kFormats[i])
+        if (f != F::None) wanted.push_back(f);
+    };
     for (const auto f : o.formats)
-      if (f >= 0 && f < kFormatCount) wanted.push_back(kFormats[f]);
-    if (wanted.empty()) wanted.assign(std::begin(kFormats), std::end(kFormats));  // empty = every format
+      if (f >= 0 && f < kFormatCount) add(f);
+    if (wanted.empty())  // empty = every format
+      for (int64_t i = 0; i < kFormatCount; i++) add(i);
 
     ZXing::ReaderOptions opts;
     opts.setFormats(ZXing::BarcodeFormats(std::move(wanted)));
@@ -168,7 +213,9 @@ class NitroZxingImpl final : public HybridNitroZxing {
     opts.setMaxNumberOfSymbols(o.maxSymbols > 0 && o.maxSymbols < kMaxSymbols ? static_cast<int>(o.maxSymbols)
                                                                                  : kMaxSymbols);
 
-    const uint64_t call = calls_.fetch_add(1, std::memory_order_relaxed);
+    // Only live calls advance the ladder, so a file decode or a thorough scan
+    // in between doesn't shift the camera stream's every-4th-miss cadence.
+    const uint64_t call = o.live ? calls_.fetch_add(1, std::memory_order_relaxed) : 1;
     auto hits = ZXing::ReadBarcodes(image, opts);
     if (hits.empty() && o.live && !o.tryRotate && call % kRotationPeriod == 0) {
       opts.setTryRotate(true);
@@ -180,7 +227,10 @@ class NitroZxingImpl final : public HybridNitroZxing {
     results.reserve(hits.size());
     for (const auto& hit : hits) {
       const int64_t format = formatOf(hit);
-      if (format < 0) continue;
+      // Keep only what was asked for, should a zxing family overlap the request.
+      if (format < 0 ||
+          (!o.formats.empty() && std::find(o.formats.begin(), o.formats.end(), format) == o.formats.end()))
+        continue;
       std::vector<int64_t> corners;
       corners.reserve(8);
       for (const auto& p : hit.position()) {

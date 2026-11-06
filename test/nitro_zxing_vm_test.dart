@@ -133,6 +133,8 @@ void main() {
       ZxingPixelFormat.rgba: (4, 3),
       ZxingPixelFormat.rgb: (3, -1),
       ZxingPixelFormat.bgr: (3, -1),
+      ZxingPixelFormat.argb: (4, 0),
+      ZxingPixelFormat.abgr: (4, 0),
     };
     for (final MapEntry(key: format, value: (channels, alphaAt))
         in layouts.entries) {
@@ -230,6 +232,47 @@ void main() {
       expect(decode(qr, formats: ZxingFormats.linear), isNull);
       expect(ZxingFormats.all, ZxingFormat.values.toSet());
     });
+  });
+
+  group('read-only symbologies (zxing-cpp samples)', () {
+    const samples = {
+      'rmqr': ZxingFormat.rmqrCode,
+      'maxicode': ZxingFormat.maxiCode,
+      'databar': ZxingFormat.dataBar,
+      'databar_expanded': ZxingFormat.dataBarExpanded,
+      'databar_limited': ZxingFormat.dataBarLimited,
+    };
+    for (final MapEntry(key: name, value: format) in samples.entries) {
+      test(name, () {
+        final png = File('test/samples/$name.png').readAsBytesSync();
+        final r = zxing.decodeImage(
+          png,
+          options: const ZxingReaderOptions(textMode: ZxingTextMode.plain),
+        )!;
+        expect(r.format, format);
+        expect(r.text, File('test/samples/$name.txt').readAsStringSync());
+        // Asking only for another format finds nothing.
+        expect(zxing.decodeImage(png, formats: {ZxingFormat.qrCode}), isNull);
+      });
+    }
+    test('GS1 DataBar renders human-readable by default', () {
+      final png = File('test/samples/databar.png').readAsBytesSync();
+      final r = zxing.decodeImage(png)!;
+      expect(
+        (r.text, r.contentType),
+        ('(01)04412345678909', ZxingContentType.gs1),
+      );
+    });
+  });
+
+  test('geometry helpers', () {
+    final r = decode(qr)!;
+    expect(r.corners, [15, 15, 240, 15, 240, 240, 15, 240]);
+    expect(r.bounds, (left: 15, top: 15, width: 225, height: 225));
+    expect(
+      (r.topLeft, r.topRight, r.bottomRight, r.bottomLeft),
+      ((x: 15, y: 15), (x: 240, y: 15), (x: 240, y: 240), (x: 15, y: 240)),
+    );
   });
 
   group('result details', () {
@@ -420,15 +463,64 @@ void main() {
         'L',
       ]);
     });
-    test('throws on text the format cannot hold, and on Micro QR', () {
+    test('every writable format is round-tripped above', () {
+      expect(samples.keys.toSet(), ZxingFormats.writable);
+    });
+    test('unwritable formats throw ArgumentError before reaching native', () {
+      for (final f in ZxingFormat.values.where(
+        (f) => !ZxingFormats.writable.contains(f),
+      )) {
+        expect(
+          () => zxing.encode('hi', format: f),
+          throwsArgumentError,
+          reason: f.name,
+        );
+      }
       expect(
         () => zxing.encode('letters', format: ZxingFormat.ean13),
         throwsA(anything),
       );
+    });
+    test('ZxingQrEcLevel names the four QR levels', () {
+      String levelOf(int ecLevel) {
+        final img = zxing.encode(
+          'ec',
+          format: ZxingFormat.qrCode,
+          ecLevel: ecLevel,
+        );
+        return zxing
+            .decode(img.pixels, width: img.width, height: img.height)!
+            .ecLevel;
+      }
+
       expect(
-        () => zxing.encode('hi', format: ZxingFormat.microQrCode),
-        throwsA(anything),
+        [
+          ZxingQrEcLevel.low,
+          ZxingQrEcLevel.medium,
+          ZxingQrEcLevel.quartile,
+          ZxingQrEcLevel.high,
+        ].map(levelOf),
+        ['L', 'M', 'Q', 'H'],
       );
+    });
+    test('1D codes without a height are drawn 40 % as tall as wide', () {
+      final img = zxing.encode('5901234123457', format: ZxingFormat.ean13);
+      expect(img.height, (img.width * 2 / 5).round());
+      expect(img.pixels, hasLength(img.width * img.height));
+      expect(
+        zxing.decode(img.pixels, width: img.width, height: img.height)?.text,
+        '5901234123457',
+      );
+      final tall = zxing.encode(
+        '5901234123457',
+        format: ZxingFormat.ean13,
+        height: 77,
+      );
+      expect(tall.height, 77);
+    });
+    test('a square 2D code given one side uses it for both', () {
+      final img = zxing.encode('hi', format: ZxingFormat.qrCode, width: 300);
+      expect((img.width, img.height), (300, 300));
     });
   });
 
@@ -451,5 +543,38 @@ void main() {
       );
       expect((await zxing.decodeImageAsync(png))?.text, 'async');
     });
+    test('decodeAllAsync and decodeImageAllAsync', () async {
+      final both = sideBySide(qr.restrided(qr.width), ean13);
+      final all = await zxing.decodeAllAsync(
+        both.bytes,
+        width: both.width,
+        height: both.height,
+      );
+      expect(all.map((r) => r.format).toSet(), {
+        ZxingFormat.qrCode,
+        ZxingFormat.ean13,
+      });
+      final png = ZxingImage(
+        width: both.width,
+        height: both.height,
+        pixels: both.bytes,
+      ).toPng();
+      expect((await zxing.decodeImageAllAsync(png)), hasLength(2));
+    });
+  });
+
+  test('non-live calls do not shift the live ladder', () {
+    // Each live call is followed by a thorough one; the rotation scan must
+    // still come within 4 live calls.
+    final rotated = ean13.rotated();
+    final hits = <ZxingResult?>[];
+    for (var i = 0; i < 4; i++) {
+      hits.add(decode(rotated, live: true));
+      decode(qr); // non-live, in between
+    }
+    expect(
+      hits.whereType<ZxingResult>().map((r) => r.text),
+      contains('5901234123457'),
+    );
   });
 }
