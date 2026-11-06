@@ -124,6 +124,12 @@ zxing.decode(pixels, width: w, height: h, options: const ZxingReaderOptions(
 | `binarizer` | `localAverage` | `localAverage`, `globalHistogram`, `fixedThreshold` (127), `boolCast` (already black/white). |
 | `textMode` | `hri` | How `text` is rendered: `plain`, `eci`, `hri` (human-readable, e.g. GS1 `(01)…`), `escaped`, `hex`. |
 
+Presets: `ZxingReaderOptions.fast` (no extra passes, even off `live` — for high-frame-rate streams), `.thorough` (every pass, even with `live` — damaged or noisy photos) and `.pure` (clean generated images). Adjust one with `copyWith`:
+
+```dart
+zxing.decode(pixels, width: w, height: h, options: ZxingReaderOptions.fast.copyWith(tryInvert: true));
+```
+
 ### Results
 
 | `ZxingResult` field | Type | Meaning |
@@ -143,6 +149,11 @@ Geometry helpers for drawing an overlay:
 ```dart
 final (:left, :top, :width, :height) = r.bounds;  // axis-aligned box around the corners
 final ({int x, int y}) tl = r.topLeft;           // also topRight, bottomRight, bottomLeft
+final corners = r.points;                        // the four, clockwise from topLeft
+final c = r.center;                              // ({double x, double y}) — e.g. a reticle
+// Frame pixels → preview widget, e.g. a 1920×1080 frame shown 390 wide:
+final box = r.bounds.scale(390 / 1920);          // or scale(sx, sy) for unequal axes
+print(r.toDisplayString());                      // qrCode: "https://dart.dev" at (15, 15, 225x225)
 ```
 
 UPC-A and UPC-E codes are reported as 13-digit GTINs, as zxing-cpp does: UPC-A gains a leading `0` (`036000291452` → `0036000291452`) and UPC-E expands to its EAN-13 form.

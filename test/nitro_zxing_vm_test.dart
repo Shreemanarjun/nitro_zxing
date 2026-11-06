@@ -265,6 +265,100 @@ void main() {
     });
   });
 
+  test('scaling, center, points and toDisplayString', () {
+    final r = decode(qr)!;
+    expect(r.bounds.scale(0.5), (
+      left: 7.5,
+      top: 7.5,
+      width: 112.5,
+      height: 112.5,
+    ));
+    expect(r.bounds.scale(2, 0.5), (
+      left: 30.0,
+      top: 7.5,
+      width: 450.0,
+      height: 112.5,
+    ));
+    expect(r.center, (x: 127.5, y: 127.5));
+    expect(r.points, [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]);
+    expect(
+      r.toDisplayString(),
+      'qrCode: "https://nitro.shreeman.dev" at (15, 15, 225x225)',
+    );
+  });
+
+  group('reader option presets', () {
+    final rotated = ean13.rotated();
+    ZxingResult? withOptions(
+      Luma img,
+      ZxingReaderOptions o, {
+      bool live = false,
+    }) => zxing.decode(
+      img.bytes,
+      width: img.width,
+      height: img.height,
+      rowStride: img.stride,
+      live: live,
+      options: o,
+    );
+    test('fast skips rotation even when not live', () {
+      expect(
+        withOptions(rotated, const ZxingReaderOptions())?.text,
+        '5901234123457',
+      );
+      expect(withOptions(rotated, ZxingReaderOptions.fast), isNull);
+    });
+    test('thorough rotates even in live mode, on every call', () {
+      for (var i = 0; i < 3; i++) {
+        expect(
+          withOptions(rotated, ZxingReaderOptions.thorough, live: true)?.text,
+          '5901234123457',
+        );
+      }
+    });
+    test('pure reads a generated code', () {
+      final img = zxing.encode('pure', format: ZxingFormat.qrCode, width: 200);
+      expect(
+        zxing
+            .decode(
+              img.pixels,
+              width: img.width,
+              height: img.height,
+              options: ZxingReaderOptions.pure,
+            )
+            ?.text,
+        'pure',
+      );
+    });
+    test('copyWith replaces only what it is given', () {
+      final o = ZxingReaderOptions.fast.copyWith(
+        textMode: ZxingTextMode.hex,
+        tryInvert: true,
+      );
+      expect(
+        (
+          o.tryHarder,
+          o.tryRotate,
+          o.tryInvert,
+          o.tryDownscale,
+          o.isPure,
+          o.binarizer,
+          o.textMode,
+        ),
+        (
+          false,
+          false,
+          true,
+          false,
+          false,
+          ZxingBinarizer.localAverage,
+          ZxingTextMode.hex,
+        ),
+      );
+      expect(const ZxingReaderOptions().copyWith().tryHarder, isNull);
+    });
+  });
+
   test('geometry helpers', () {
     final r = decode(qr)!;
     expect(r.corners, [15, 15, 240, 15, 240, 240, 15, 240]);

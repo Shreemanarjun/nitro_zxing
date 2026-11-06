@@ -98,6 +98,22 @@ abstract final class ZxingQrEcLevel {
 /// A rectangle of the image to search, in pixels.
 typedef ZxingRegion = ({int left, int top, int width, int height});
 
+/// Mapping a region from image pixels to screen space.
+extension ZxingRegionScaling on ZxingRegion {
+  /// This region scaled by [sx] horizontally and [sy] (default [sx])
+  /// vertically, e.g. from a 1920×1080 frame to a 390×219 preview:
+  /// `r.bounds.scale(390 / 1920)`.
+  ({double left, double top, double width, double height}) scale(
+    double sx, [
+    double? sy,
+  ]) => (
+    left: left * sx,
+    top: top * (sy ?? sx),
+    width: width * sx,
+    height: height * (sy ?? sx),
+  );
+}
+
 /// Advanced reader settings. The `try*` flags default (null) to "thorough
 /// unless `live`".
 class ZxingReaderOptions {
@@ -128,6 +144,47 @@ class ZxingReaderOptions {
     this.binarizer = ZxingBinarizer.localAverage,
     this.textMode = ZxingTextMode.hri,
   });
+
+  /// No extra search passes, whatever `live` says: for high-frame-rate
+  /// camera streams (with `live: true` the rotation ladder still runs).
+  static const fast = ZxingReaderOptions(
+    tryHarder: false,
+    tryRotate: false,
+    tryInvert: false,
+    tryDownscale: false,
+  );
+
+  /// Every extra search pass, even with `live`: for damaged, noisy or
+  /// tricky photos.
+  static const thorough = ZxingReaderOptions(
+    tryHarder: true,
+    tryRotate: true,
+    tryInvert: true,
+    tryDownscale: true,
+  );
+
+  /// Clean, digitally rendered barcodes (screenshots, generated images).
+  static const pure = ZxingReaderOptions(isPure: true);
+
+  /// A copy with the given fields replaced (a `try*` flag can't be reset to
+  /// null "follow `live`" this way; build a new [ZxingReaderOptions] for that).
+  ZxingReaderOptions copyWith({
+    bool? tryHarder,
+    bool? tryRotate,
+    bool? tryInvert,
+    bool? tryDownscale,
+    bool? isPure,
+    ZxingBinarizer? binarizer,
+    ZxingTextMode? textMode,
+  }) => ZxingReaderOptions(
+    tryHarder: tryHarder ?? this.tryHarder,
+    tryRotate: tryRotate ?? this.tryRotate,
+    tryInvert: tryInvert ?? this.tryInvert,
+    tryDownscale: tryDownscale ?? this.tryDownscale,
+    isPure: isPure ?? this.isPure,
+    binarizer: binarizer ?? this.binarizer,
+    textMode: textMode ?? this.textMode,
+  );
 
   ZxingReadOptions _resolve(
     Set<ZxingFormat> formats,
@@ -160,6 +217,20 @@ extension ZxingResultGeometry on ZxingResult {
   ({int x, int y}) get bottomRight => _corner(2);
   ({int x, int y}) get bottomLeft => _corner(3);
 
+  /// The four corners, clockwise from [topLeft].
+  List<({int x, int y})> get points => [
+    topLeft,
+    topRight,
+    bottomRight,
+    bottomLeft,
+  ];
+
+  /// The centre of [bounds], e.g. for an aiming reticle or a tooltip.
+  ({double x, double y}) get center {
+    final b = bounds;
+    return (x: b.left + b.width / 2, y: b.top + b.height / 2);
+  }
+
   /// The axis-aligned rectangle enclosing the four corners.
   ZxingRegion get bounds {
     var (minX, minY, maxX, maxY) = (
@@ -175,6 +246,16 @@ extension ZxingResultGeometry on ZxingResult {
       if (corners[i + 1] > maxY) maxY = corners[i + 1];
     }
     return (left: minX, top: minY, width: maxX - minX, height: maxY - minY);
+  }
+}
+
+/// Readable output for a [ZxingResult] (its default `toString` is
+/// `Instance of 'ZxingResult'`).
+extension ZxingResultFormatting on ZxingResult {
+  /// One line, e.g. `qrCode: "https://dart.dev" at (15, 15, 225x225)`.
+  String toDisplayString() {
+    final b = bounds;
+    return '${format.name}: "$text" at (${b.left}, ${b.top}, ${b.width}x${b.height})';
   }
 }
 
